@@ -447,6 +447,12 @@ if(DAOS_FOUND)
   set(ADIOS2_HAVE_DAOS TRUE)
 endif()
 
+# Caliper
+find_package(Caliper)
+if(Caliper_FOUND)
+  set(ADIOS2_HAVE_Caliper TRUE)
+endif()
+
 # BP5
 if(ADIOS2_USE_BP5 AND NOT WIN32)
   set(ADIOS2_HAVE_BP5 TRUE)

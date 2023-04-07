@@ -15,6 +15,9 @@
 
 #include <adios2.h>
 
+#include <caliper/cali.h>
+#include <caliper/cali-manager.h>
+
 #ifndef _WIN32
 #include "strings.h"
 #else
@@ -27,7 +30,8 @@ adios2::Params engineParams = {}; // parsed from command line
 int NSteps = 10;
 int NumVars = 100;
 int NumArrays = 100;
-int NumAttrs = 100;
+int NumAttrs = 0;
+//int NumAttrs = 100;
 int NumBlocks = 1;
 int ReaderDelay = 0;
 int WriterSize;
@@ -517,6 +521,8 @@ int main(int argc, char **argv)
     int key;
     std::string MeasurementString;
     unsigned int color = 0;
+
+    cali_config_set("CALI_CALIPER_ATTRIBUTE_DEFAULT_SCOPE", "process");
 
     ParseArgs(argc, argv);
 

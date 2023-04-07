@@ -26,6 +26,9 @@
 #include <mpi.h>
 #include <vector>
 
+#include <caliper/cali.h>
+#include <caliper/cali-manager.h>
+
 #define FAIL(fmt, ...)                                                         \
     do                                                                         \
     {                                                                          \

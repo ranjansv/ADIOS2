@@ -26,6 +26,8 @@
 #include "adios2/toolkit/transportman/TransportMan.h"
 #include <daos.h>
 #include <daos_obj.h>
+#include <caliper/cali.h>
+#include <caliper/cali-manager.h>
 #include <mpi.h>
 
 #define FAIL(fmt, ...)                                                         \

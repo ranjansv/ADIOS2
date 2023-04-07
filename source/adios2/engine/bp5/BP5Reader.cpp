@@ -78,7 +78,9 @@ void BP5Reader::InstallMetadataForTimestep(size_t Step)
         }
         else
         {
+	    CALI_MARK_BEGIN("BP5Reader::InstallMetaData");
             m_BP5Deserializer->InstallMetaData(ThisMD, ThisMDSize, WriterRank);
+	    CALI_MARK_END("BP5Reader::InstallMetaData");
         }
         MDPosition += ThisMDSize;
     }
@@ -169,8 +171,9 @@ StepStatus BP5Reader::BeginStep(StepMode mode, const float timeoutSeconds)
         /* Remove all existing variables from previous steps
            It seems easier than trying to update them */
         // m_IO.RemoveAllVariables();
-
+	CALI_MARK_BEGIN("BP5Reader::InstallMetadataForTimestep");
         InstallMetadataForTimestep(m_CurrentStep);
+	CALI_MARK_END("BP5Reader::InstallMetadataForTimestep");
         m_IO.ResetVariablesStepSelection(false,
                                          "in call to BP5 Reader BeginStep");
 
@@ -800,6 +803,8 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
             auto p = m_FilteredMetadataInfo.back();
             uint64_t expectedMinFileSize = p.first + p.second;
             size_t actualFileSize = 0;
+
+	    CALI_MARK_BEGIN("BP5Reader::GetFileSize");
             do
             {
                 actualFileSize = m_MDFileManager.GetFileSize(0);
@@ -808,7 +813,9 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
                     break;
                 }
             } while (SleepOrQuit(timeoutInstant, pollSeconds));
+	    CALI_MARK_END("BP5Reader::GetFileSize");
 
+	    CALI_MARK_BEGIN("BP5Reader::m_MDFileManager.ReadFile");
             if (actualFileSize >= expectedMinFileSize)
             {
                 m_Metadata.Resize(fileFilteredSize,
@@ -841,6 +848,7 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
                         "while "
                         "the writer is creating the new files.");
             }
+	    CALI_MARK_END("BP5Reader::m_MDFileManager.ReadFile");
 
             /* Read new meta-meta-data into memory and append to existing one in
              * memory */
@@ -867,7 +875,9 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
         // broadcast metadata index buffer to all ranks from zero
         m_Comm.BroadcastVector(m_MetaMetadata.m_Buffer);
 
+	CALI_MARK_BEGIN("BP5Reader::InstallMetaMetaData");
         InstallMetaMetaData(m_MetaMetadata);
+	CALI_MARK_END("BP5Reader::InstallMetaMetaData");
 
         if (m_OpenMode == Mode::ReadRandomAccess)
         {

@@ -141,6 +141,7 @@ include(CTest)
 
 adios_option(Blosc2     "Enable support for c-blosc-2 transforms" AUTO)
 adios_option(BZip2      "Enable support for BZip2 transforms" AUTO)
+adios_option(Caliper    "Enable support for Caliper" AUTO)
 adios_option(ZFP        "Enable support for ZFP transforms" AUTO)
 adios_option(SZ         "Enable support for SZ transforms" AUTO)
 adios_option(LIBPRESSIO "Enable support for LIBPRESSIO transforms" AUTO)
@@ -236,7 +237,7 @@ endif()
 
 set(ADIOS2_CONFIG_OPTS
     BP5 DataMan DataSpaces HDF5 HDF5_VOL MHS SST Fortran MPI Python Blosc2
-    BZip2 LIBPRESSIO MGARD PNG SZ ZFP DAOS IME O_DIRECT Sodium Catalyst SysVShMem UCX ZeroMQ 
+    BZip2 Caliper LIBPRESSIO MGARD PNG SZ ZFP DAOS IME O_DIRECT Sodium Catalyst SysVShMem UCX ZeroMQ 
     Profiling Endian_Reverse AWSSDK GPU_Support CUDA Kokkos Kokkos_CUDA Kokkos_HIP
 )
 

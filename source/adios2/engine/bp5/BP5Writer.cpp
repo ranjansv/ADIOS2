@@ -559,6 +559,7 @@ void BP5Writer::EndStep()
      * Two-step metadata aggregation
      */
     m_Profiler.Start("meta_lvl1");
+    CALI_MARK_BEGIN("BP5Writer::meta_lvl1");
     std::vector<char> MetaBuffer;
     core::iovec m{TSInfo.MetaEncodeBuffer->Data(),
                   TSInfo.MetaEncodeBuffer->m_FixedSize};
@@ -575,6 +576,7 @@ void BP5Writer::EndStep()
     if (m_Aggregator->m_Comm.Size() > 1)
     { // level 1
         m_Profiler.Start("meta_gather1");
+        CALI_MARK_BEGIN("BP5Writer::meta_gather1");
         size_t LocalSize = MetaBuffer.size();
         std::vector<size_t> RecvCounts =
             m_Aggregator->m_Comm.GatherValues(LocalSize, 0);
@@ -592,6 +594,7 @@ void BP5Writer::EndStep()
         m_Aggregator->m_Comm.GathervArrays(MetaBuffer.data(), LocalSize,
                                            RecvCounts.data(), RecvCounts.size(),
                                            RecvBuffer.data(), 0);
+	CALI_MARK_END("BP5Writer::meta_gather1");
         m_Profiler.Stop("meta_gather1");
         if (m_Aggregator->m_Comm.Rank() == 0)
         {
@@ -610,8 +613,10 @@ void BP5Writer::EndStep()
                 WriterDataPositions);
         }
     } // level 1
+    CALI_MARK_END("BP5Writer::meta_lvl1");
     m_Profiler.Stop("meta_lvl1");
     m_Profiler.Start("meta_lvl2");
+    CALI_MARK_BEGIN("BP5Writer::meta_lvl2");
     // level 2
     if (m_Aggregator->m_Comm.Rank() == 0)
     {
@@ -622,6 +627,7 @@ void BP5Writer::EndStep()
         if (m_CommAggregators.Size() > 1)
         {
             m_Profiler.Start("meta_gather2");
+	    CALI_MARK_BEGIN("BP5Writer::meta_gather2");
             RecvCounts = m_CommAggregators.GatherValues(LocalSize, 0);
             if (m_CommAggregators.Rank() == 0)
             {
@@ -638,6 +644,7 @@ void BP5Writer::EndStep()
                 MetaBuffer.data(), LocalSize, RecvCounts.data(),
                 RecvCounts.size(), RecvBuffer.data(), 0);
             buf = &RecvBuffer;
+	    CALI_MARK_END("BP5Writer::meta_gather2");
             m_Profiler.Stop("meta_gather2");
         }
         else
@@ -660,7 +667,9 @@ void BP5Writer::EndStep()
                    static_cast<size_t>(m_Comm.Size()));
             WriteMetaMetadata(UniqueMetaMetaBlocks);
             m_LatestMetaDataPos = m_MetaDataPos;
+	    CALI_MARK_BEGIN("BP5Writer::WriteMetadata");
             m_LatestMetaDataSize = WriteMetadata(Metadata, AttributeBlocks);
+	    CALI_MARK_END("BP5Writer::WriteMetadata");
             if (!m_Parameters.AsyncWrite)
             {
                 WriteMetadataFileIndex(m_LatestMetaDataPos,
@@ -668,6 +677,7 @@ void BP5Writer::EndStep()
             }
         }
     } // level 2
+    CALI_MARK_END("BP5Writer::meta_lvl2");
     m_Profiler.Stop("meta_lvl2");
 
     if (m_Parameters.AsyncWrite)

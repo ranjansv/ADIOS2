@@ -24,6 +24,9 @@
 #include <map>
 #include <vector>
 
+#include <caliper/cali.h>
+#include <caliper/cali-manager.h>
+
 namespace adios2
 {
 namespace core

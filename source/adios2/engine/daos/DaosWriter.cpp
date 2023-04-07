@@ -573,9 +573,11 @@ void DaosWriter::EndStep()
         TSInfo.NewMetaMetaBlocks, {m}, {a}, {m_ThisTimestepDataSize},
         {m_StartDataPos});
 
+    CALI_MARK_BEGIN("DaosWriter::meta_lvl1");
     if (m_Aggregator->m_Comm.Size() > 1)
     { // level 1
         m_Profiler.Start("meta_gather1");
+        CALI_MARK_BEGIN("DaosWriter::meta_gather1");
         size_t LocalSize = MetaBuffer.size();
         std::vector<size_t> RecvCounts =
             m_Aggregator->m_Comm.GatherValues(LocalSize, 0);
@@ -593,6 +595,7 @@ void DaosWriter::EndStep()
         m_Aggregator->m_Comm.GathervArrays(MetaBuffer.data(), LocalSize,
                                            RecvCounts.data(), RecvCounts.size(),
                                            RecvBuffer.data(), 0);
+        CALI_MARK_END("DaosWriter::meta_gather1");
         m_Profiler.Stop("meta_gather1");
         if (m_Aggregator->m_Comm.Rank() == 0)
         {
@@ -611,9 +614,11 @@ void DaosWriter::EndStep()
                 WriterDataPositions);
         }
     } // level 1
+    CALI_MARK_END("DaosWriter::meta_lvl1");
     m_Profiler.Stop("meta_lvl1");
     m_Profiler.Start("meta_lvl2");
     // level 2
+    CALI_MARK_BEGIN("DaosWriter::meta_lvl2");
     if (m_Aggregator->m_Comm.Rank() == 0)
     {
         std::vector<char> RecvBuffer;
@@ -622,6 +627,7 @@ void DaosWriter::EndStep()
         size_t LocalSize = MetaBuffer.size();
         if (m_CommAggregators.Size() > 1)
         {
+            CALI_MARK_BEGIN("DaosWriter::meta_gather2");
             m_Profiler.Start("meta_gather2");
             RecvCounts = m_CommAggregators.GatherValues(LocalSize, 0);
             if (m_CommAggregators.Rank() == 0)
@@ -639,6 +645,7 @@ void DaosWriter::EndStep()
                 MetaBuffer.data(), LocalSize, RecvCounts.data(),
                 RecvCounts.size(), RecvBuffer.data(), 0);
             buf = &RecvBuffer;
+            CALI_MARK_END("DaosWriter::meta_gather2");
             m_Profiler.Stop("meta_gather2");
         }
         else
@@ -672,11 +679,12 @@ void DaosWriter::EndStep()
         }
     } // level 2
     m_Profiler.Stop("meta_lvl2");
+    CALI_MARK_END("DaosWriter::meta_lvl2");
 
     char key[1000];
     int rc;
-
     sprintf(key, "step%d-rank%d", m_WriterStep, m_Comm.Rank());
+/*
     std::cout << __FILE__ << "::" << __func__ << "(), step: " << m_WriterStep
               << std::endl;
     std::cout << "Rank = " << m_Comm.Rank()
@@ -687,15 +695,16 @@ void DaosWriter::EndStep()
     char *data = reinterpret_cast<char *>(TSInfo.MetaEncodeBuffer->Data());
     for (int i = 0; i < 10; i++)
     {
-        // std::cout << std::hex << std::setw(2) << std::setfill('0') <<
-        // static_cast<int>(data[i]) << " ";
         std::cout << static_cast<int>(data[i]) << " ";
     }
     std::cout << std::endl;
+*/
+    CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
     rc = daos_kv_put(oh, DAOS_TX_NONE, 0, key,
                      TSInfo.MetaEncodeBuffer->m_FixedSize,
                      TSInfo.MetaEncodeBuffer->Data(), NULL);
     ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
+    CALI_MARK_END("DaosWriter::daos_kv_put");
 
     if (m_Parameters.AsyncWrite)
     {
@@ -725,7 +734,9 @@ void DaosWriter::Init()
     InitParameters();
     InitAggregator();
     InitTransports();
+    CALI_MARK_BEGIN("DaosWriter::InitDAOS");
     InitDAOS();
+    CALI_MARK_END("DaosWriter::InitDAOS");
     InitBPBuffer();
 }
 
@@ -1233,6 +1244,8 @@ void DaosWriter::InitDAOS()
 {
     // Rank 0 - Connect to DAOS pool, and open container
     int rc;
+    rc = daos_init();
+    ASSERT(rc == 0, "daos_init failed with %d", rc);
     rc = gethostname(node, sizeof(node));
     ASSERT(rc == 0, "buffer for hostname too small");
     if (m_Comm.Rank() == 0)
@@ -1259,6 +1272,7 @@ void DaosWriter::InitDAOS()
     /** share container handle with peer tasks */
     daos_handle_share(&coh, HANDLE_CO);
 
+    CALI_MARK_BEGIN("DaosWriter::create-oid-n-broadcast");
     if (m_Comm.Rank() == 0)
     {
         /** Open a DAOS KV object */
@@ -1269,18 +1283,25 @@ void DaosWriter::InitDAOS()
     // Rank 0 will broadcast the DAOS KV OID
     MPI_Bcast(&oid.hi, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
     MPI_Bcast(&oid.lo, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    CALI_MARK_END("DaosWriter::create-oid-n-broadcast");
 
     // Open KV object
+    CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
     rc = daos_kv_open(coh, oid, 0, &oh, NULL);
     ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
-    FILE *fp = fopen("./share/oid.txt", "w");
-    if (fp == NULL)
+    CALI_MARK_END("DaosWriter::daos_kv_open");
+
+    if (m_Comm.Rank() == 0)
     {
-        perror("fopen");
-        exit(1);
+	FILE *fp = fopen("./share/oid.txt", "w");
+        if (fp == NULL)
+        {
+            perror("fopen");
+            exit(1);
+        }
+        fprintf(fp, "%" PRIu64 "\n%" PRIu64 "\n", oid.hi, oid.lo);
+        fclose(fp);
     }
-    fprintf(fp, "%" PRIu64 "\n%" PRIu64 "\n", oid.hi, oid.lo);
-    fclose(fp);
 }
 
 /*generate the header for the metadata index file*/
