@@ -804,18 +804,17 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
             uint64_t expectedMinFileSize = p.first + p.second;
             size_t actualFileSize = 0;
 
-	    CALI_MARK_BEGIN("BP5Reader::GetFileSize");
             do
             {
+	        CALI_MARK_BEGIN("BP5Reader::GetFileSize");
                 actualFileSize = m_MDFileManager.GetFileSize(0);
+	        CALI_MARK_END("BP5Reader::GetFileSize");
                 if (actualFileSize >= expectedMinFileSize)
                 {
                     break;
                 }
             } while (SleepOrQuit(timeoutInstant, pollSeconds));
-	    CALI_MARK_END("BP5Reader::GetFileSize");
 
-	    CALI_MARK_BEGIN("BP5Reader::m_MDFileManager.ReadFile");
             if (actualFileSize >= expectedMinFileSize)
             {
                 m_Metadata.Resize(fileFilteredSize,
@@ -824,8 +823,10 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
                 size_t mempos = 0;
                 for (auto p : m_FilteredMetadataInfo)
                 {
+	            CALI_MARK_BEGIN("BP5Reader::m_MDFileManager.ReadFile");
                     m_MDFileManager.ReadFile(
                         m_Metadata.m_Buffer.data() + mempos, p.second, p.first);
+	            CALI_MARK_END("BP5Reader::m_MDFileManager.ReadFile");
                     mempos += p.second;
                 }
                 m_MDFileAlreadyReadSize = expectedMinFileSize;
@@ -848,7 +849,6 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
                         "while "
                         "the writer is creating the new files.");
             }
-	    CALI_MARK_END("BP5Reader::m_MDFileManager.ReadFile");
 
             /* Read new meta-meta-data into memory and append to existing one in
              * memory */
@@ -875,9 +875,7 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
         // broadcast metadata index buffer to all ranks from zero
         m_Comm.BroadcastVector(m_MetaMetadata.m_Buffer);
 
-	CALI_MARK_BEGIN("BP5Reader::InstallMetaMetaData");
         InstallMetaMetaData(m_MetaMetadata);
-	CALI_MARK_END("BP5Reader::InstallMetaMetaData");
 
         if (m_OpenMode == Mode::ReadRandomAccess)
         {
