@@ -552,7 +552,7 @@ void DaosWriter::EndStep()
     m_AsyncWriteLock.lock();
     m_flagRush = false;
     m_AsyncWriteLock.unlock();
-    WriteData(databuf);
+    //RSV WriteData(databuf);
     m_Profiler.Stop("AWD");
 
     /*
@@ -1276,13 +1276,15 @@ void DaosWriter::InitDAOS()
     if (m_Comm.Rank() == 0)
     {
         /** Open a DAOS KV object */
-        rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+        //rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+        rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_S1, 0, 0);
         ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
     }
 
     // Rank 0 will broadcast the DAOS KV OID
-    MPI_Bcast(&oid.hi, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&oid.lo, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&oid, sizeof(daos_obj_id_t), MPI_BYTE, 0, MPI_COMM_WORLD);
+    //MPI_Bcast(&oid.hi, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    //MPI_Bcast(&oid.lo, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
     CALI_MARK_END("DaosWriter::create-oid-n-broadcast");
 
     // Open KV object

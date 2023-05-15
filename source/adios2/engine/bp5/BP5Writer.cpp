@@ -552,7 +552,7 @@ void BP5Writer::EndStep()
     m_AsyncWriteLock.lock();
     m_flagRush = false;
     m_AsyncWriteLock.unlock();
-    WriteData(databuf);
+    //RSV WriteData(databuf);
     m_Profiler.Stop("AWD");
 
     /*

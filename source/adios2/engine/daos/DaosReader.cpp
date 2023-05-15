@@ -75,11 +75,12 @@ void DaosReader::InstallMetadataForTimestep(size_t Step) {
     std::cout << __FILE__ << "::" << __func__ << "(), step: " << Step
               << std::endl;
     std::cout << "key = " << key << std::endl;*/
+
     CALI_MARK_BEGIN("DaosReader::daos_kv_getsize");
     rc = daos_kv_get(oh, DAOS_TX_NONE, 0, key, &ThisMDSize, NULL, NULL);
     ASSERT(rc == 0, "daos_kv_get() failed to get size with %d", rc);
     CALI_MARK_END("DaosReader::daos_kv_getsize");
-    // std::cout << "WriterRank = " << WriterRank
+    //std::cout << "WriterRank = " << WriterRank
     //          << ", ThisMDSize = " << ThisMDSize << std::endl;
 
     // Allocate memory
@@ -211,7 +212,7 @@ void DaosReader::EndStep() {
   }
   m_BetweenStepPairs = false;
   PERFSTUBS_SCOPED_TIMER("DaosReader::EndStep");
-  PerformGets();
+  //RSV PerformGets();
 }
 
 std::pair<double, double>
@@ -659,7 +660,7 @@ void DaosReader::InitDAOS() {
     /** connect to the just created DAOS pool */
     rc = daos_pool_connect(pool_label, DSS_PSETID,
                            // DAOS_PC_EX ,
-                           DAOS_PC_RW /* read write access */,
+                           DAOS_PC_RO /* read only access */,
                            &poh /* returned pool handle */,
                            NULL /* returned pool info */, NULL /* event */);
     ASSERT(rc == 0, "pool connect failed with %d", rc);
@@ -670,7 +671,7 @@ void DaosReader::InitDAOS() {
 
   if (m_Comm.Rank() == 0) {
     /** open container */
-    rc = daos_cont_open(poh, cont_label, DAOS_COO_RW, &coh, NULL, NULL);
+    rc = daos_cont_open(poh, cont_label, DAOS_COO_RO, &coh, NULL, NULL);
     ASSERT(rc == 0, "container open failed with %d", rc);
   }
 
@@ -692,13 +693,14 @@ void DaosReader::InitDAOS() {
   }
 
   // Rank 0 will broadcast the DAOS KV OID
-  MPI_Bcast(&oid.hi, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-  MPI_Bcast(&oid.lo, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&oid, sizeof(daos_obj_id_t), MPI_BYTE, 0, MPI_COMM_WORLD);
+  //MPI_Bcast(&oid.hi, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+  //MPI_Bcast(&oid.lo, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
   CALI_MARK_END("DaosReader::fscanf-oid-n-broadcast");
 
   // Open KV object
   CALI_MARK_BEGIN("DaosReader::daos_kv_open");
-  rc = daos_kv_open(coh, oid, 0, &oh, NULL);
+  rc = daos_kv_open(coh, oid, DAOS_OO_RO, &oh, NULL);
   ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
   CALI_MARK_END("DaosReader::daos_kv_open");
 }
