@@ -894,7 +894,7 @@ void BP5Serializer::Marshal(void *Variable, const char *Name,
                     lf_QueueSpanMinMax(*Span, ElemCount, (DataType)Rec->Type,
                                        MemSpace, Rec->MetaOffset,
                                        Rec->MinMaxOffset,
-                                       MetaEntry->BlockCount /*BlockNum*/);
+                                       MetaEntry->BlockCount - 1 /*BlockNum*/);
                 }
             }
 
@@ -1205,6 +1205,12 @@ BP5Serializer::TimestepInfo BP5Serializer::CloseTimestep(int timestep,
         Block.MetaMetaInfo = get_server_rep_FMformat(Format, &size);
         Block.MetaMetaInfoLen = size;
         Block.MetaMetaID = get_server_ID_FMformat(Format, &size);
+#ifdef DEBUG_BADALLOC
+	printf("BP5Serializer::TimestepInfo() Block.MetaMetaID\n");
+	for(int i = 0; i < 12; i++)
+		printf("%02x ", Block.MetaMetaID[i]);
+	printf("\n");
+#endif
         Block.MetaMetaIDLen = size;
         Formats.push_back(Block);
     }
@@ -1271,6 +1277,13 @@ BP5Serializer::TimestepInfo BP5Serializer::CloseTimestep(int timestep,
 
     void *MetaDataBlock = FFSencode(MetaEncodeBuffer, Info.MetaFormat,
                                     MetadataBuf, &MetaDataSize);
+    char *ptr = (char *) MetaDataBlock;
+#ifdef DEBUG_BADALLOC
+    printf("BP5Serializer::TimestepInfo() MetaDataBlock\n");
+    for(int i = 0; i < 20; i++)
+	    printf("%02x ", ptr[i]);
+    printf("\n");
+#endif
     BufferFFS *Metadata =
         new BufferFFS(MetaEncodeBuffer, MetaDataBlock, MetaDataSize);
 
@@ -1333,19 +1346,27 @@ BP5Serializer::TimestepInfo BP5Serializer::CloseTimestep(int timestep,
     MBase->BitField = tmp;
     NewAttribute = false;
 
-    struct TimestepInfo Ret
-    {
-        Formats, Metadata, AttrData, CurDataBuffer
-    };
+    struct TimestepInfo Ret;
+    Ret.NewMetaMetaBlocks = Formats;
+    Ret.MetaEncodeBuffer.reset(Metadata);
+    Ret.AttributeEncodeBuffer.reset(AttrData);
+    Ret.DataBuffer = CurDataBuffer;
     CurDataBuffer = NULL;
+
     if (Info.AttributeFields)
+    {
         free_FMfield_list(Info.AttributeFields);
-    Info.AttributeFields = NULL;
+        Info.AttributeFields = NULL;
+    }
     Info.AttributeFieldCount = 0;
+
     if (Info.AttributeData)
+    {
         free(Info.AttributeData);
-    Info.AttributeData = NULL;
+        Info.AttributeData = NULL;
+    }
     Info.AttributeSize = 0;
+
     return Ret;
 }
 

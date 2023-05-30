@@ -21,7 +21,9 @@
 *.pyc
 *.bp
 *.bp.dir
+tags
 build/
+install/
 
 # Mac OSX finder-related files
 .DS_Store

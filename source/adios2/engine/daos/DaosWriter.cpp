@@ -1260,7 +1260,9 @@ void DaosWriter::InitDAOS()
     }
 
     /** share pool handle with peer tasks */
+    CALI_MARK_BEGIN("DaosWriter::daos_handle_share_pool");
     daos_handle_share(&poh, DaosWriter::HANDLE_POOL);
+    CALI_MARK_END("DaosWriter::daos_handle_share_pool");
 
     if (m_Comm.Rank() == 0)
     {
@@ -1270,14 +1272,17 @@ void DaosWriter::InitDAOS()
     }
 
     /** share container handle with peer tasks */
+    CALI_MARK_BEGIN("DaosWriter::daos_handle_share_cont");
     daos_handle_share(&coh, HANDLE_CO);
+    CALI_MARK_END("DaosWriter::daos_handle_share_cont");
 
     CALI_MARK_BEGIN("DaosWriter::create-oid-n-broadcast");
     if (m_Comm.Rank() == 0)
     {
         /** Open a DAOS KV object */
         //rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
-        rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_S1, 0, 0);
+        //rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_S1, 0, 0);
+        rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_SX, 0, 0);
         ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
     }
 
