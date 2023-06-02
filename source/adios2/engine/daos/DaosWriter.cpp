@@ -1244,10 +1244,15 @@ void DaosWriter::InitDAOS()
 {
     // Rank 0 - Connect to DAOS pool, and open container
     int rc;
+    CALI_MARK_BEGIN("DaosWriter::daos_init");
     rc = daos_init();
     ASSERT(rc == 0, "daos_init failed with %d", rc);
+    CALI_MARK_END("DaosWriter::daos_init");
+
     rc = gethostname(node, sizeof(node));
     ASSERT(rc == 0, "buffer for hostname too small");
+
+    CALI_MARK_BEGIN("DaosWriter::daos_pool_connect");
     if (m_Comm.Rank() == 0)
     {
         /** connect to the just created DAOS pool */
@@ -1259,17 +1264,21 @@ void DaosWriter::InitDAOS()
         ASSERT(rc == 0, "pool connect failed with %d", rc);
     }
 
+    CALI_MARK_END("DaosWriter::daos_pool_connect");
+
     /** share pool handle with peer tasks */
     CALI_MARK_BEGIN("DaosWriter::daos_handle_share_pool");
     daos_handle_share(&poh, DaosWriter::HANDLE_POOL);
     CALI_MARK_END("DaosWriter::daos_handle_share_pool");
 
+    CALI_MARK_BEGIN("DaosWriter::daos_cont_open");
     if (m_Comm.Rank() == 0)
     {
         /** open container */
         rc = daos_cont_open(poh, cont_label, DAOS_COO_RW, &coh, NULL, NULL);
         ASSERT(rc == 0, "container open failed with %d", rc);
     }
+    CALI_MARK_END("DaosWriter::daos_cont_open");
 
     /** share container handle with peer tasks */
     CALI_MARK_BEGIN("DaosWriter::daos_handle_share_cont");
@@ -1982,59 +1991,58 @@ void DaosWriter::DoPutStructDeferred(VariableStruct &variable, const void *data)
     PutCommon(variable, data, false);
 }
 
-void DaosWriter::daos_handle_share(daos_handle_t *hdl, int type)
-{
-    d_iov_t ghdl = {NULL, 0, 0};
-    int rc;
+void DaosWriter::daos_handle_share(daos_handle_t *hdl, int type) {
+  d_iov_t ghdl = { NULL, 0, 0 };
+  int rc;
 
-    if (m_Comm.Rank() == 0)
-    {
-        /** fetch size of global handle */
-        if (type == DaosWriter::HANDLE_POOL)
-            rc = daos_pool_local2global(*hdl, &ghdl);
-        else
-            rc = daos_cont_local2global(*hdl, &ghdl);
-        ASSERT(rc == 0, "local2global failed with %d", rc);
+  CALI_MARK_BEGIN("DaosWriter::local2global+broadcast_sizeofhandle");
+  if (m_Comm.Rank() == 0) {
+    /** fetch size of global handle */
+    if (type == DaosWriter::HANDLE_POOL)
+      rc = daos_pool_local2global(*hdl, &ghdl);
+    else
+      rc = daos_cont_local2global(*hdl, &ghdl);
+    ASSERT(rc == 0, "local2global failed with %d", rc);
+  }
+
+  /** broadcast size of global handle to all peers */
+  MPI_Bcast(&ghdl.iov_buf_len, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+  CALI_MARK_END("DaosWriter::local2global+broadcast_sizeofhandle");
+
+  /** allocate buffer for global pool handle */
+  ghdl.iov_buf = malloc(ghdl.iov_buf_len);
+  ghdl.iov_len = ghdl.iov_buf_len;
+
+  CALI_MARK_BEGIN("DaosWriter::local2global+broadcast_handle");
+  if (m_Comm.Rank() == 0) {
+    /** generate actual global handle to share with peer tasks */
+    if (type == DaosWriter::HANDLE_POOL)
+      rc = daos_pool_local2global(*hdl, &ghdl);
+    else
+      rc = daos_cont_local2global(*hdl, &ghdl);
+    ASSERT(rc == 0, "local2global failed with %d", rc);
+  }
+
+  /** broadcast global handle to all peers */
+  MPI_Bcast(ghdl.iov_buf, ghdl.iov_len, MPI_BYTE, 0, MPI_COMM_WORLD);
+  CALI_MARK_END("DaosWriter::local2global+broadcast_handle");
+
+  CALI_MARK_BEGIN("DaosWriter::global2local+barrier");
+  if (m_Comm.Rank() != 0) {
+    /** unpack global handle */
+    if (type == DaosWriter::HANDLE_POOL) {
+      /* NB: Only pool_global2local are different */
+      rc = daos_pool_global2local(ghdl, hdl);
+    } else {
+      rc = daos_cont_global2local(poh, ghdl, hdl);
     }
+    ASSERT(rc == 0, "global2local failed with %d", rc);
+  }
 
-    /** broadcast size of global handle to all peers */
-    MPI_Bcast(&ghdl.iov_buf_len, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+  free(ghdl.iov_buf);
 
-    /** allocate buffer for global pool handle */
-    ghdl.iov_buf = malloc(ghdl.iov_buf_len);
-    ghdl.iov_len = ghdl.iov_buf_len;
-
-    if (m_Comm.Rank() == 0)
-    {
-        /** generate actual global handle to share with peer tasks */
-        if (type == DaosWriter::HANDLE_POOL)
-            rc = daos_pool_local2global(*hdl, &ghdl);
-        else
-            rc = daos_cont_local2global(*hdl, &ghdl);
-        ASSERT(rc == 0, "local2global failed with %d", rc);
-    }
-
-    /** broadcast global handle to all peers */
-    MPI_Bcast(ghdl.iov_buf, ghdl.iov_len, MPI_BYTE, 0, MPI_COMM_WORLD);
-
-    if (m_Comm.Rank() != 0)
-    {
-        /** unpack global handle */
-        if (type == DaosWriter::HANDLE_POOL)
-        {
-            /* NB: Only pool_global2local are different */
-            rc = daos_pool_global2local(ghdl, hdl);
-        }
-        else
-        {
-            rc = daos_cont_global2local(poh, ghdl, hdl);
-        }
-        ASSERT(rc == 0, "global2local failed with %d", rc);
-    }
-
-    free(ghdl.iov_buf);
-
-    MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
+  CALI_MARK_END("DaosWriter::global2local+barrier");
 }
 
 } // end namespace engine

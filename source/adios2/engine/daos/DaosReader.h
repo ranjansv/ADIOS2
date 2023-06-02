@@ -210,6 +210,8 @@ private:
                               const size_t absoluteStartPos,
                               const bool hasHeader);
 
+    void ReadMetadata(size_t);
+
     /** Process the new metadata coming in (in UpdateBuffer)
      *  @param newIdxSize: the size of the new content from Index Table
      */
