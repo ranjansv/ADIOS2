@@ -17,10 +17,16 @@
 #include <iomanip>
 #include <mutex>
 #include <thread>
+#include <stdbool.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 using TP = std::chrono::high_resolution_clock::time_point;
 #define NOW() std::chrono::high_resolution_clock::now();
 #define DURATION(T1, T2) static_cast<double>((T2 - T1).count()) / 1000000000.0;
+
+#define DEBUG_BADALLOC 
+#undef DEBUG_BADALLOC
 
 namespace adios2 {
 namespace core {
@@ -58,6 +64,7 @@ void DaosReader::ReadMetadata(size_t Step) {
   int rc;
 
   m_Metadata.Reset(true, false);
+  //m_Metadata.Reset(true, true);
 
   size_t total_mdsize = 0;
   size_t buffer_size = 0;
@@ -117,6 +124,13 @@ void DaosReader::ReadMetadata(size_t Step) {
         rc = daos_kv_get(oh, DAOS_TX_NONE, 0, key, &ThisMDSize, &meta_buff[index], NULL);
         ASSERT(rc == 0, "daos_kv_get() failed to read metadata with %d", rc);
         CALI_MARK_END("DaosReader::daos_kv_get");
+#ifdef DEBUG_BADALLOC
+	printf("DaosReader::ReadMetadata MetadataBlock\n");
+	char *tmp_ptr = &meta_buff[index];
+	for(int i = 0; i < 20; i++)
+		printf("%02x ", tmp_ptr[i]); 
+	printf("\n");
+#endif
 
         index += ThisMDSize;
     }
@@ -125,15 +139,19 @@ void DaosReader::ReadMetadata(size_t Step) {
   }
 
   // broadcast buffer to all ranks from zero
+   CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
    m_Comm.BroadcastVector(m_Metadata.m_Buffer);
+   CALI_MARK_END("DaosReader::broadcast_metadata");
 
 }
 
 void DaosReader::InstallMetadataForTimestep(size_t Step) {
-    size_t pgstart = m_MetadataIndexTable[Step][0];
+    //size_t pgstart = m_MetadataIndexTable[Step][0];
+    size_t pgstart = m_MetadataIndexTable[0][0];
     size_t Position = pgstart + sizeof(uint64_t); // skip total data size
     const uint64_t WriterCount =
-        m_WriterMap[m_WriterMapIndex[Step]].WriterCount;
+        m_WriterMap[m_WriterMapIndex[0]].WriterCount;
+        //m_WriterMap[m_WriterMapIndex[Step]].WriterCount;
     size_t MDPosition = Position + 2 * sizeof(uint64_t) * WriterCount;
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++)
     {
@@ -169,6 +187,18 @@ void DaosReader::InstallMetadataForTimestep(size_t Step) {
 
 StepStatus DaosReader::BeginStep(StepMode mode, const float timeoutSeconds) {
   PERFSTUBS_SCOPED_TIMER("DaosReader::BeginStep");
+
+    //const char* fileName = "/home/hpcvenk1/benchmarks/wait-for-gdb.txt";
+    //struct stat buffer;
+
+    //if (m_Comm.Rank() == 0) {
+    //    while (stat(fileName, &buffer) != 0) {
+    //        sleep(1);  // Sleep for 1 second before checking again
+    //    }
+    //
+    //    printf("File '%s' has been created!\n", fileName);
+    //}
+    //MPI_Barrier(MPI_COMM_WORLD);
 
   if (m_OpenMode == Mode::ReadRandomAccess) {
     helper::Throw<std::logic_error>("Engine", "DaosReader", "BeginStep",
@@ -228,7 +258,9 @@ StepStatus DaosReader::BeginStep(StepMode mode, const float timeoutSeconds) {
     /* Remove all existing variables from previous steps
        It seems easier than trying to update them */
     // m_IO.RemoveAllVariables();
+    CALI_MARK_BEGIN("DaosReader::ReadMetadata");
     ReadMetadata(m_CurrentStep);
+    CALI_MARK_END("DaosReader::ReadMetadata");
 
     CALI_MARK_BEGIN("DaosReader::InstallMetadataForTimestep");
     InstallMetadataForTimestep(m_CurrentStep);
@@ -831,7 +863,7 @@ void DaosReader::UpdateBuffer(const TimePoint &timeoutInstant,
   }
 
   if (m_StepsCount > stepsBefore) {
-    m_Metadata.Reset(true, false);
+    //m_Metadata.Reset(true, false);
     m_MetaMetadata.Reset(true, false);
     if (m_Comm.Rank() == 0) {
 //      // How much metadata do we need to read?

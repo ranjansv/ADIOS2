@@ -23,6 +23,9 @@
 #pragma warning(disable : 4250)
 #endif
 
+#define DEBUG_BADALLOC
+#undef DEBUG_BADALLOC
+
 namespace adios2
 {
 namespace format

@@ -29,6 +29,9 @@
 #include "adios2/operator/compress/CompressMGARD.h"
 #endif
 
+#define DEBUG_BADALLOC
+#undef DEBUG_BADALLOC
+
 #include "adios2/operator/OperatorFactory.h"
 
 #include <array>
