@@ -28,6 +28,9 @@ using TP = std::chrono::high_resolution_clock::time_point;
 #define DEBUG_BADALLOC 
 #undef DEBUG_BADALLOC
 
+#define MAX_IO_REQS 10
+
+
 namespace adios2 {
 namespace core {
 namespace engine {
@@ -63,6 +66,21 @@ void DaosReader::ReadMetadata(size_t Step) {
   const uint64_t WriterCount = m_WriterMap[m_WriterMapIndex[Step]].WriterCount;
   int rc;
 
+  daos_event_t ev[MAX_IO_REQS], *evp[MAX_IO_REQS];
+  daos_handle_t eq;
+
+
+  //Create event queue; 
+  rc = daos_eq_create(&eq);
+  ASSERT(rc == 0, "daos_eq_create() failed to with %d", rc);
+
+
+  //Init events
+  for(int i = 0; i < MAX_IO_REQS; i++) {
+    rc = daos_event_init(&ev[i], eq, NULL);
+    ASSERT(rc == 0, "event init failed with %d", rc);
+  }
+
   m_Metadata.Reset(true, false);
   //m_Metadata.Reset(true, true);
 
@@ -73,6 +91,8 @@ void DaosReader::ReadMetadata(size_t Step) {
 
   //Reader rank 0 -readers all metadata
   if(m_Comm.Rank() == 0) {
+    if(Step == 1) 
+        std::cout << "Async I/O with " << MAX_IO_REQS << " outstanding daos_kv_get " << std::endl;
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
         char key[1000];
 	size_t writer_mdsize;
@@ -112,29 +132,51 @@ void DaosReader::ReadMetadata(size_t Step) {
     char * meta_buff = (char*) &ptr[index];
     index = 0;
 
-    //Now read in the actual metadata for reach writer
-    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
-        char key[1000];
-        size_t ThisMDSize; 
+    //Now read in the actual metadata for each writer
+    size_t WriterRank = 0;
+    
 
-	ThisMDSize = list_writer_mdsize[WriterRank];
+while (WriterRank < WriterCount) {
+    char key[1000];
+    size_t ThisMDSize;
+    int batchLimit = 0;
+
+    // Start batch
+    while (WriterRank < WriterCount && batchLimit < MAX_IO_REQS) {
+        ThisMDSize = list_writer_mdsize[WriterRank];
 
         sprintf(key, "step%d-rank%d", Step, WriterRank);
         CALI_MARK_BEGIN("DaosReader::daos_kv_get");
-        rc = daos_kv_get(oh, DAOS_TX_NONE, 0, key, &ThisMDSize, &meta_buff[index], NULL);
+        rc = daos_kv_get(oh, DAOS_TX_NONE, 0, key, &ThisMDSize, &meta_buff[index], &ev[batchLimit]);
         ASSERT(rc == 0, "daos_kv_get() failed to read metadata with %d", rc);
         CALI_MARK_END("DaosReader::daos_kv_get");
-#ifdef DEBUG_BADALLOC
-	printf("DaosReader::ReadMetadata MetadataBlock\n");
-	char *tmp_ptr = &meta_buff[index];
-	for(int i = 0; i < 20; i++)
-		printf("%02x ", tmp_ptr[i]); 
-	printf("\n");
-#endif
 
         index += ThisMDSize;
+
+        WriterRank++;
+        batchLimit++;
     }
-    
+
+    // Wait for all DaosKVOperations();
+      int i = 0;
+      while (1) {
+        rc = daos_eq_poll(eq, 1, DAOS_EQ_WAIT, batchLimit, evp);
+        ASSERT(rc > 0, "daos_eq_poll() failed with %d", rc);
+        i += rc;
+        if (i >= batchLimit)
+          break;
+      }
+
+#ifdef DEBUG_BADALLOC
+    // Print metadata block for the last writer in the batch
+    printf("DaosReader::ReadMetadata MetadataBlock\n");
+    char *tmp_ptr = &meta_buff[index - ThisMDSize];
+    for(int i = 0; i < 20; i++)
+        printf("%02x ", tmp_ptr[i]);
+    printf("\n");
+#endif
+}
+ 
     
   }
 
@@ -142,6 +184,8 @@ void DaosReader::ReadMetadata(size_t Step) {
    CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
    m_Comm.BroadcastVector(m_Metadata.m_Buffer);
    CALI_MARK_END("DaosReader::broadcast_metadata");
+
+   daos_eq_destroy(eq, 0);
 
 }
 
