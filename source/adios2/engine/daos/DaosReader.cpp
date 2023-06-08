@@ -28,7 +28,7 @@ using TP = std::chrono::high_resolution_clock::time_point;
 #define DEBUG_BADALLOC 
 #undef DEBUG_BADALLOC
 
-#define MAX_IO_REQS 100
+#define MAX_IO_REQS 10
 
 
 namespace adios2 {
