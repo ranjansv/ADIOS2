@@ -66,22 +66,6 @@ void DaosReader::ReadMetadata(size_t Step) {
   const uint64_t WriterCount = m_WriterMap[m_WriterMapIndex[Step]].WriterCount;
   int rc;
 
-  daos_event_t ev[MAX_IO_REQS], *evp[MAX_IO_REQS];
-  daos_handle_t eq;
-
-// Create event queue;
-CALI_MARK_BEGIN("DaosReader::EventQueueCreation");
-rc = daos_eq_create(&eq);
-CALI_MARK_END("DaosReader::EventQueueCreation");
-ASSERT(rc == 0, "daos_eq_create() failed with %d", rc);
-
-// Init events
-for (int i = 0; i < MAX_IO_REQS; i++) {
-  CALI_MARK_BEGIN("DaosReader::EventInitialization");
-  rc = daos_event_init(&ev[i], eq, NULL);
-  CALI_MARK_END("DaosReader::EventInitialization");
-  ASSERT(rc == 0, "event init failed with %d", rc);
-}
 
   m_Metadata.Reset(true, false);
   //m_Metadata.Reset(true, true);
@@ -93,6 +77,23 @@ for (int i = 0; i < MAX_IO_REQS; i++) {
 
   //Reader rank 0 -readers all metadata
   if(m_Comm.Rank() == 0) {
+  daos_event_t ev[MAX_IO_REQS], *evp[MAX_IO_REQS];
+  daos_handle_t eq;
+
+  // Create event queue;
+  CALI_MARK_BEGIN("DaosReader::EventQueueCreation");
+  rc = daos_eq_create(&eq);
+  CALI_MARK_END("DaosReader::EventQueueCreation");
+  ASSERT(rc == 0, "daos_eq_create() failed with %d", rc);
+  
+  // Init events
+  for (int i = 0; i < MAX_IO_REQS; i++) {
+    CALI_MARK_BEGIN("DaosReader::EventInitialization");
+    rc = daos_event_init(&ev[i], eq, NULL);
+    CALI_MARK_END("DaosReader::EventInitialization");
+    ASSERT(rc == 0, "event init failed with %d", rc);
+  }
+   CALI_MARK_BEGIN("DaosReader::loop-getsize");
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
         char key[1000];
 	size_t writer_mdsize;
@@ -109,15 +110,20 @@ for (int i = 0; i < MAX_IO_REQS; i++) {
 	list_writer_mdsize.push_back(writer_mdsize);
 	total_mdsize += writer_mdsize;
     }
+   CALI_MARK_END("DaosReader::loop-getsize");
+
+   CALI_MARK_BEGIN("DaosReader::m_Metadata.Resize()");
 
     //Allocate memory for m_Metadata
     buffer_size = sizeof(uint64_t) * (2 * WriterCount + 1) + total_mdsize;
     m_Metadata.Resize(buffer_size, "allocating metadata buffer, "
                                    "in call to DaosReader Open");
+   CALI_MARK_END("DaosReader::m_Metadata.Resize()");
 
     uint64_t * ptr = (uint64_t*) m_Metadata.m_Buffer.data();
 
     //The Metadata buffer is contructed like in WriteMetadata()
+    CALI_MARK_BEGIN("DaosReader::Copy-metadata-sizes");
     ptr[0] = total_mdsize;
     int index = 1; 
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
@@ -128,13 +134,15 @@ for (int i = 0; i < MAX_IO_REQS; i++) {
        ptr[index] = 0;
        index++;
     }
+    CALI_MARK_END("DaosReader::Copy-metadata-sizes");
 
     char * meta_buff = (char*) &ptr[index];
     index = 0;
 
     //Now read in the actual metadata for each writer
     size_t WriterRank = 0;
-    
+
+    CALI_MARK_BEGIN("DaosReader::loop-get");
     while (WriterRank < WriterCount) {
         char key[1000];
         size_t ThisMDSize;
@@ -178,7 +186,22 @@ for (int i = 0; i < MAX_IO_REQS; i++) {
               printf("\n");
           #endif
     }
+    CALI_MARK_END("DaosReader::loop-get");
  
+
+   // Cleanup events
+   for (int i = 0; i < MAX_IO_REQS; i++) {
+     CALI_MARK_BEGIN("DaosReader::EventFinalization");
+   
+     // Call daos_event_fini() for int type
+     daos_event_fini(&ev[i]);
+   
+     CALI_MARK_END("DaosReader::EventFinalization");
+   }
+
+   CALI_MARK_BEGIN("DaosReader::daos_eq_destroy()");
+   daos_eq_destroy(eq, 0);
+   CALI_MARK_END("DaosReader::daos_eq_destroy()");
     
   }
 
@@ -187,7 +210,6 @@ for (int i = 0; i < MAX_IO_REQS; i++) {
    m_Comm.BroadcastVector(m_Metadata.m_Buffer);
    CALI_MARK_END("DaosReader::broadcast_metadata");
 
-   daos_eq_destroy(eq, 0);
 
 }
 

@@ -530,6 +530,7 @@ void BP5Writer::EndStep()
     m_BetweenStepPairs = false;
     PERFSTUBS_SCOPED_TIMER("BP5Writer::EndStep");
     m_Profiler.Start("endstep");
+    CALI_MARK_BEGIN("BP5Writer::EndStep");
 
     m_Profiler.Start("close_ts");
     MarshalAttributes();
@@ -593,6 +594,7 @@ void BP5Writer::EndStep()
                       << TotalSize << " bytes from aggregator group"
                       << std::endl;*/
         }
+	//m_Aggregator->m_Comm.Barrier();
         m_Aggregator->m_Comm.GathervArrays(MetaBuffer.data(), LocalSize,
                                            RecvCounts.data(), RecvCounts.size(),
                                            RecvBuffer.data(), 0);
@@ -641,6 +643,7 @@ void BP5Writer::EndStep()
                           << TotalSize << " bytes from aggregator group"
                           << std::endl;*/
             }
+	    //m_CommAggregators.Barrier();
 
             m_CommAggregators.GathervArrays(
                 MetaBuffer.data(), LocalSize, RecvCounts.data(),
@@ -679,8 +682,10 @@ void BP5Writer::EndStep()
             }
         }
     } // level 2
+    m_Comm.Barrier();
     CALI_MARK_END("BP5Writer::meta_lvl2");
     m_Profiler.Stop("meta_lvl2");
+
 
     if (m_Parameters.AsyncWrite)
     {
@@ -694,6 +699,8 @@ void BP5Writer::EndStep()
             m_AsyncWriteLock.unlock();
         }
     }
+
+    CALI_MARK_END("BP5Writer::EndStep");
 
     m_Profiler.Stop("endstep");
     m_WriterStep++;
