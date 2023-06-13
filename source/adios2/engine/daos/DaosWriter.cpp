@@ -24,6 +24,7 @@
 #include <iostream>
 #include <memory> // make_shared
 
+
 namespace adios2
 {
 namespace core
@@ -681,30 +682,58 @@ void DaosWriter::EndStep()
     m_Profiler.Stop("meta_lvl2");
     CALI_MARK_END("DaosWriter::meta_lvl2");
 
+/*
     char key[1000];
     int rc;
     sprintf(key, "step%d-rank%d", m_WriterStep, m_Comm.Rank());
-/*
-    std::cout << __FILE__ << "::" << __func__ << "(), step: " << m_WriterStep
-              << std::endl;
-    std::cout << "Rank = " << m_Comm.Rank()
-              << ", Metadata size = " << TSInfo.MetaEncodeBuffer->m_FixedSize
-              << std::endl;
-    std::cout << "key = " << key << std::endl;
-    std::cout << "Printing the first 10 bytes of Metadata" << std::endl;
-    char *data = reinterpret_cast<char *>(TSInfo.MetaEncodeBuffer->Data());
-    for (int i = 0; i < 10; i++)
-    {
-        std::cout << static_cast<int>(data[i]) << " ";
-    }
-    std::cout << std::endl;
-*/
+
     CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
     rc = daos_kv_put(oh, DAOS_TX_NONE, 0, key,
                      TSInfo.MetaEncodeBuffer->m_FixedSize,
                      TSInfo.MetaEncodeBuffer->Data(), NULL);
     ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
     CALI_MARK_END("DaosWriter::daos_kv_put");
+*/
+    //Collect metadata size of each rank
+    /* Allocate memory for the list_metadata_size array */
+    //uint64_t* list_metadata_size = new uint64_t[m_Comm.Size()];
+    uint64_t list_metadata_size[m_Comm.Size()];
+
+    /* Use MPI_Allgather to gather list_metadata_size from all processes */
+    CALI_MARK_BEGIN("DaosWriter::metadata-stablization");
+    MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
+
+
+    size_t offset = 0;
+    for(int i = 0; i < m_Comm.Size(); i++) {
+        if (i < m_Comm.Rank()) {
+	    offset += list_metadata_size[i];
+	}
+    }
+
+    //Setup I/O Descriptor  
+    iod.arr_nr = 1;
+    rg.rg_len = list_metadata_size[m_Comm.Rank()]; 
+    rg.rg_idx = m_step_offset + offset;
+    iod.arr_rgs = &rg;
+
+    /** set memory location */ 
+    sgl.sg_nr = 1;
+    d_iov_set(&iov, TSInfo.MetaEncodeBuffer->Data(), TSInfo.MetaEncodeBuffer->m_FixedSize);
+    sgl.sg_iovs = &iov;
+
+    //Write Metadata
+    CALI_MARK_BEGIN("DaosWriter::daos_array_write");
+    daos_array_write(oh, DAOS_TX_NONE, &iod, &sgl, NULL);
+    CALI_MARK_END("DaosWriter::daos_array_write");
+    
+
+    //m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
+    m_step_offset += 2097152;
+    CALI_MARK_END("DaosWriter::metadata-stablization");
+
+    //delete[] list_metadata_size;
+ 
 
     if (m_Parameters.AsyncWrite)
     {
@@ -1285,27 +1314,31 @@ void DaosWriter::InitDAOS()
     daos_handle_share(&coh, HANDLE_CO);
     CALI_MARK_END("DaosWriter::daos_handle_share_cont");
 
-    CALI_MARK_BEGIN("DaosWriter::create-oid-n-broadcast");
     if (m_Comm.Rank() == 0)
     {
-        /** Open a DAOS KV object */
-        //rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
-        //rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_S1, 0, 0);
-        rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_SX, 0, 0);
+        CALI_MARK_BEGIN("DaosWriter::create-daos-array");
+        /** Open a DAOS array object */
+	daos_size_t cell_size = 1;
+	daos_size_t chunk_size = 1048576;
+	oid.hi = 0;
+	oid.lo = 0;
+	daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
         ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
+	rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
+        ASSERT(rc == 0, "daos_array_create failed with %d", rc);
+        CALI_MARK_END("DaosWriter::create-daos-array");
     }
+    CALI_MARK_BEGIN("DaosWriter::array_oh_share");
+    array_oh_share(&oh);
+    CALI_MARK_END("DaosWriter::array_oh_share");
 
-    // Rank 0 will broadcast the DAOS KV OID
-    MPI_Bcast(&oid, sizeof(daos_obj_id_t), MPI_BYTE, 0, MPI_COMM_WORLD);
-    //MPI_Bcast(&oid.hi, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-    //MPI_Bcast(&oid.lo, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-    CALI_MARK_END("DaosWriter::create-oid-n-broadcast");
 
-    // Open KV object
-    CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
-    rc = daos_kv_open(coh, oid, 0, &oh, NULL);
-    ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
-    CALI_MARK_END("DaosWriter::daos_kv_open");
+
+    // Open array object
+    //CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
+    //rc = daos_kv_open(coh, oid, 0, &oh, NULL);
+    //ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
+    //CALI_MARK_END("DaosWriter::daos_kv_open");
 
     if (m_Comm.Rank() == 0)
     {
@@ -1318,6 +1351,45 @@ void DaosWriter::InitDAOS()
         fprintf(fp, "%" PRIu64 "\n%" PRIu64 "\n", oid.hi, oid.lo);
         fclose(fp);
     }
+}
+
+void DaosWriter::array_oh_share(daos_handle_t *oh) {
+  d_iov_t ghdl = { NULL, 0, 0 };
+  int rc;
+
+  if (m_Comm.Rank() == 0) {
+    /** fetch size of global handle */
+    rc = daos_array_local2global(*oh, &ghdl);
+    ASSERT(rc == 0, "local2global failed with %d", rc);
+  }
+
+  /** broadcast size of global handle to all peers */
+  rc = MPI_Bcast(&ghdl.iov_buf_len, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+  ASSERT(rc == MPI_SUCCESS, "MPI_Bcast for iov_buf_len failed with %d", rc);
+
+  /** allocate buffer for global pool handle */
+  ghdl.iov_buf = malloc(ghdl.iov_buf_len);
+  ghdl.iov_len = ghdl.iov_buf_len;
+
+  if (m_Comm.Rank() == 0) {
+    /** generate actual global handle to share with peer tasks */
+    rc = daos_array_local2global(*oh, &ghdl);
+    ASSERT(rc == 0, "local2global failed with %d", rc);
+  }
+
+  /** broadcast global handle to all peers */
+  rc = MPI_Bcast(ghdl.iov_buf, ghdl.iov_len, MPI_BYTE, 0, MPI_COMM_WORLD);
+  ASSERT(rc == MPI_SUCCESS, "MPI_Bcast for iov_buf failed with %d", rc);
+
+  if (m_Comm.Rank() != 0) {
+    /** unpack global handle */
+    rc = daos_array_global2local(coh, ghdl, 0, oh);
+    ASSERT(rc == 0, "global2local failed with %d", rc);
+  }
+
+  free(ghdl.iov_buf);
+
+  MPI_Barrier(MPI_COMM_WORLD);
 }
 
 /*generate the header for the metadata index file*/
