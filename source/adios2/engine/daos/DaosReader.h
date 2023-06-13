@@ -43,6 +43,8 @@
             FAIL(__VA_ARGS__);                                                 \
     } while (0)
 
+#define MAX_AGGREGATE_METADATA_SIZE (5ULL * 1024 * 1024 * 1024)
+
 namespace adios2
 {
 namespace core
@@ -120,7 +122,7 @@ private:
     /* DAOS declarations */
 
     uuid_t pool_uuid, cont_uuid;
-    char *pool_label = "pool_ranjansv";
+    char *pool_label = "test";
     char *cont_label = "adios-daos-engine-cont";
 
     /* Declare variables for pool and container handles */
@@ -133,8 +135,14 @@ private:
     };
 
     /* Declare variables for the KV object */
-    daos_handle_t oh;
-    daos_obj_id_t oid;
+    daos_handle_t oh, mdsize_oh;
+    daos_obj_id_t oid, mdsize_oid;
+    daos_array_iod_t iod;
+    daos_range_t rg;
+    d_sg_list_t sgl;
+    d_iov_t iov;
+
+    size_t m_step_offset = 0;
 
     char node[128] = "unknown";
 
@@ -160,6 +168,7 @@ private:
 
     /** DAOS pool connection and container opening */
     void InitDAOS();
+    void array_oh_share(daos_handle_t *);
 
     /* Sleep up to pollSeconds time if we have not reached timeoutInstant.
      * Return true if slept

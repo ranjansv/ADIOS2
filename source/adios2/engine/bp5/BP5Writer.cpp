@@ -679,6 +679,7 @@ void BP5Writer::EndStep()
             }
         }
     } // level 2
+    m_Comm.Barrier();
     CALI_MARK_END("BP5Writer::meta_lvl2");
     m_Profiler.Stop("meta_lvl2");
 

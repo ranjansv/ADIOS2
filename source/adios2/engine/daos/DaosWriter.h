@@ -97,7 +97,7 @@ private:
     /* DAOS declarations */
 
     uuid_t pool_uuid, cont_uuid;
-    char *pool_label = "pool_ranjansv";
+    char *pool_label = "test";
     char *cont_label = "adios-daos-engine-cont";
 
     /* Declare variables for pool and container handles */
@@ -110,8 +110,8 @@ private:
     };
 
     /* Declare variables for the KV object */
-    daos_handle_t oh;
-    daos_obj_id_t oid;
+    daos_handle_t oh, mdsize_oh;
+    daos_obj_id_t oid, mdsize_oid;
     daos_array_iod_t iod;
     daos_range_t rg;
     d_sg_list_t sgl;

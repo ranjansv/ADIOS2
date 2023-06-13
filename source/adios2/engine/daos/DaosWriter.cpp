@@ -728,8 +728,20 @@ void DaosWriter::EndStep()
     CALI_MARK_END("DaosWriter::daos_array_write");
     
 
-    //m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
-    m_step_offset += 2097152;
+    m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
+
+    //Writer Rank 0 -Store the list of metadata size in a KV entry
+    if(m_Comm.Rank() == 0) {
+        char key[1000];
+	sprintf(key, "step%d", m_WriterStep);
+	CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
+	int rc = daos_kv_put(mdsize_oh, DAOS_TX_NONE, 0, key, 
+	       	 sizeof(uint64_t) * m_Comm.Size(), 
+	       	 list_metadata_size, NULL);
+	ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
+	CALI_MARK_END("DaosWriter::daos_kv_put");
+    }
+
     CALI_MARK_END("DaosWriter::metadata-stablization");
 
     //delete[] list_metadata_size;
@@ -1327,6 +1339,16 @@ void DaosWriter::InitDAOS()
 	rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
         ASSERT(rc == 0, "daos_array_create failed with %d", rc);
         CALI_MARK_END("DaosWriter::create-daos-array");
+
+	/** Create a DAOS KV object to store metadata sizes */
+	rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OF_KV_FLAT, OC_SX, 0, 0);
+	ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
+
+        // Open array object
+        CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
+        rc = daos_kv_open(coh, mdsize_oid, 0, &mdsize_oh, NULL);
+        ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
+        CALI_MARK_END("DaosWriter::daos_kv_open");
     }
     CALI_MARK_BEGIN("DaosWriter::array_oh_share");
     array_oh_share(&oh);
@@ -1334,11 +1356,6 @@ void DaosWriter::InitDAOS()
 
 
 
-    // Open array object
-    //CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
-    //rc = daos_kv_open(coh, oid, 0, &oh, NULL);
-    //ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
-    //CALI_MARK_END("DaosWriter::daos_kv_open");
 
     if (m_Comm.Rank() == 0)
     {
@@ -1349,6 +1366,7 @@ void DaosWriter::InitDAOS()
             exit(1);
         }
         fprintf(fp, "%" PRIu64 "\n%" PRIu64 "\n", oid.hi, oid.lo);
+        fprintf(fp, "%" PRIu64 "\n%" PRIu64 "\n", mdsize_oid.hi, mdsize_oid.lo);
         fclose(fp);
     }
 }
