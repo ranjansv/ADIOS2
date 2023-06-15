@@ -90,6 +90,10 @@ void DaosReader::ReadMetadata(size_t Step) {
 	total_mdsize += list_writer_mdsize[WriterRank];
     }
 
+    //std::cout << "Step: " << Step;
+    //std::cout << ", WriterCount: " << WriterCount;
+    //std::cout << ", total_mdsize: " << total_mdsize << std::endl;
+
     //Allocate memory for m_Metadata
     buffer_size = sizeof(uint64_t) * (2 * WriterCount + 1) + total_mdsize;
     m_Metadata.Resize(buffer_size, "allocating metadata buffer, "
@@ -253,9 +257,9 @@ StepStatus DaosReader::BeginStep(StepMode mode, const float timeoutSeconds) {
     /* Remove all existing variables from previous steps
        It seems easier than trying to update them */
     // m_IO.RemoveAllVariables();
-    CALI_MARK_BEGIN("DaosReader::ReadMetadata");
+    CALI_MARK_BEGIN("DaosReader::metadata-acquisition");
     ReadMetadata(m_CurrentStep);
-    CALI_MARK_END("DaosReader::ReadMetadata");
+    CALI_MARK_END("DaosReader::metadata-acquisition");
 
     CALI_MARK_BEGIN("DaosReader::InstallMetadataForTimestep");
     InstallMetadataForTimestep(m_CurrentStep);

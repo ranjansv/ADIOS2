@@ -787,6 +787,7 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
 
     if (m_StepsCount > stepsBefore)
     {
+        CALI_MARK_BEGIN("BP5Reader::metadata-acquisition");
         m_Metadata.Reset(true, false);
         m_MetaMetadata.Reset(true, false);
         if (m_Comm.Rank() == 0)
@@ -828,6 +829,7 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
                         m_Metadata.m_Buffer.data() + mempos, p.second, p.first);
 	            CALI_MARK_END("BP5Reader::m_MDFileManager.ReadFile");
                     mempos += p.second;
+		    //std::cout << "readsize: " << p.second << std::endl;
                 }
                 m_MDFileAlreadyReadSize = expectedMinFileSize;
             }
@@ -873,6 +875,7 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
 	CALI_MARK_BEGIN("BP5Reader::broadcast_metadata");
         m_Comm.BroadcastVector(m_Metadata.m_Buffer);
 	CALI_MARK_END("BP5Reader::broadcast_metadata");
+        CALI_MARK_BEGIN("BP5Reader::metadata-acquisition");
 
         // broadcast metadata index buffer to all ranks from zero
         m_Comm.BroadcastVector(m_MetaMetadata.m_Buffer);

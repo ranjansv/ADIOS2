@@ -680,27 +680,14 @@ void DaosWriter::EndStep()
         }
     } // level 2
     m_Profiler.Stop("meta_lvl2");
+    //Barrier to exclude stragglers from MPI_Allgather()
+    m_Comm.Barrier();
     CALI_MARK_END("DaosWriter::meta_lvl2");
 
-/*
-    char key[1000];
-    int rc;
-    sprintf(key, "step%d-rank%d", m_WriterStep, m_Comm.Rank());
-
-    CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
-    rc = daos_kv_put(oh, DAOS_TX_NONE, 0, key,
-                     TSInfo.MetaEncodeBuffer->m_FixedSize,
-                     TSInfo.MetaEncodeBuffer->Data(), NULL);
-    ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
-    CALI_MARK_END("DaosWriter::daos_kv_put");
-*/
-    //Collect metadata size of each rank
-    /* Allocate memory for the list_metadata_size array */
-    //uint64_t* list_metadata_size = new uint64_t[m_Comm.Size()];
-    uint64_t list_metadata_size[m_Comm.Size()];
 
     /* Use MPI_Allgather to gather list_metadata_size from all processes */
     CALI_MARK_BEGIN("DaosWriter::metadata-stablization");
+    uint64_t list_metadata_size[m_Comm.Size()];
     MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
 
 
@@ -1333,7 +1320,7 @@ void DaosWriter::InitDAOS()
 	daos_size_t cell_size = 1;
 	daos_size_t chunk_size = 1048576;
 	oid.hi = 0;
-	oid.lo = 0;
+	oid.lo = 57;
 	daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
         ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 	rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
@@ -1341,6 +1328,8 @@ void DaosWriter::InitDAOS()
         CALI_MARK_END("DaosWriter::create-daos-array");
 
 	/** Create a DAOS KV object to store metadata sizes */
+	mdsize_oid.hi = 0;
+	mdsize_oid.lo = 23;
 	rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OF_KV_FLAT, OC_SX, 0, 0);
 	ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 

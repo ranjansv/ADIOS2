@@ -615,6 +615,7 @@ void BP5Writer::EndStep()
                 WriterDataPositions);
         }
     } // level 1
+    CALI_MARK_BEGIN("BP5Writer::metadata-stabilization");
     CALI_MARK_END("BP5Writer::meta_lvl1");
     m_Profiler.Stop("meta_lvl1");
     m_Profiler.Start("meta_lvl2");
@@ -681,6 +682,7 @@ void BP5Writer::EndStep()
     } // level 2
     m_Comm.Barrier();
     CALI_MARK_END("BP5Writer::meta_lvl2");
+    CALI_MARK_END("BP5Writer::metadata-stabilization");
     m_Profiler.Stop("meta_lvl2");
 
     if (m_Parameters.AsyncWrite)
