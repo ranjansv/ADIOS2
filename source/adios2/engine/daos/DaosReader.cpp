@@ -328,9 +328,10 @@ StepStatus DaosReader::BeginStep(StepMode mode, const float timeoutSeconds) {
     // m_IO.RemoveAllVariables();
     if(m_Comm.Rank() == 0 && m_CurrentStep == 1) 
         std::cout << "Async I/O with " << MAX_IO_REQS << " outstanding daos_kv_get " << std::endl;
-    CALI_MARK_BEGIN("DaosReader::ReadMetadata");
+
+    CALI_MARK_BEGIN("DaosReader::metadata-acquisition");
     ReadMetadata(m_CurrentStep);
-    CALI_MARK_END("DaosReader::ReadMetadata");
+    CALI_MARK_END("DaosReader::metadata-acquisition");
 
     CALI_MARK_BEGIN("DaosReader::InstallMetadataForTimestep");
     InstallMetadataForTimestep(m_CurrentStep);

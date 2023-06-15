@@ -562,6 +562,7 @@ void BP5Writer::EndStep()
      * Two-step metadata aggregation
      */
     m_Profiler.Start("meta_lvl1");
+    CALI_MARK_BEGIN("BP5Writer::metadata-stabilization");
     CALI_MARK_BEGIN("BP5Writer::meta_lvl1");
     std::vector<char> MetaBuffer;
     core::iovec m{TSInfo.MetaEncodeBuffer->Data(),
@@ -684,6 +685,7 @@ void BP5Writer::EndStep()
     } // level 2
     m_Comm.Barrier();
     CALI_MARK_END("BP5Writer::meta_lvl2");
+    CALI_MARK_END("BP5Writer::metadata-stabilization");
     m_Profiler.Stop("meta_lvl2");
 
 

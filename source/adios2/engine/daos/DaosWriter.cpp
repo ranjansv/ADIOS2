@@ -681,30 +681,18 @@ void DaosWriter::EndStep()
     m_Profiler.Stop("meta_lvl2");
     CALI_MARK_END("DaosWriter::meta_lvl2");
 
+    CALI_MARK_BEGIN("DaosWriter::metadata-stabilization");
     char key[1000];
     int rc;
     sprintf(key, "step%d-rank%d", m_WriterStep, m_Comm.Rank());
-/*
-    std::cout << __FILE__ << "::" << __func__ << "(), step: " << m_WriterStep
-              << std::endl;
-    std::cout << "Rank = " << m_Comm.Rank()
-              << ", Metadata size = " << TSInfo.MetaEncodeBuffer->m_FixedSize
-              << std::endl;
-    std::cout << "key = " << key << std::endl;
-    std::cout << "Printing the first 10 bytes of Metadata" << std::endl;
-    char *data = reinterpret_cast<char *>(TSInfo.MetaEncodeBuffer->Data());
-    for (int i = 0; i < 10; i++)
-    {
-        std::cout << static_cast<int>(data[i]) << " ";
-    }
-    std::cout << std::endl;
-*/
+
     CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
     rc = daos_kv_put(oh, DAOS_TX_NONE, 0, key,
                      TSInfo.MetaEncodeBuffer->m_FixedSize,
                      TSInfo.MetaEncodeBuffer->Data(), NULL);
     ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
     CALI_MARK_END("DaosWriter::daos_kv_put");
+    CALI_MARK_END("DaosWriter::metadata-stabilization");
 
     if (m_Parameters.AsyncWrite)
     {
