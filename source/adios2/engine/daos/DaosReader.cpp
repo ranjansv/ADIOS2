@@ -62,6 +62,7 @@ void DaosReader::InstallMetadataForTimestep(size_t Step) {
     // size_t ThisMDSize = helper::ReadValue<uint64_t>(
     //    m_Metadata.m_Buffer, Position, m_Minifooter.IsLittleEndian);
     // char *ThisMD = m_Metadata.m_Buffer.data() + MDPosition;
+    CALI_MARK_BEGIN("DaosReader::metadata-acquisition");
     size_t ThisMDSize;
     char *ThisMD;
 
@@ -91,6 +92,7 @@ void DaosReader::InstallMetadataForTimestep(size_t Step) {
     rc = daos_kv_get(oh, DAOS_TX_NONE, 0, key, &ThisMDSize, ThisMD, NULL);
     ASSERT(rc == 0, "daos_kv_get() failed to read metadata with %d", rc);
     CALI_MARK_END("DaosReader::daos_kv_get");
+    CALI_MARK_END("DaosReader::metadata-acquisition");
 
     /*std::cout << "Printing the first 10 bytes of Metadata" << std::endl;
     char *data = reinterpret_cast<char *>(ThisMD);
