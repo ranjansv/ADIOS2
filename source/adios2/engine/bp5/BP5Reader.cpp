@@ -875,7 +875,7 @@ void BP5Reader::UpdateBuffer(const TimePoint &timeoutInstant,
 	CALI_MARK_BEGIN("BP5Reader::broadcast_metadata");
         m_Comm.BroadcastVector(m_Metadata.m_Buffer);
 	CALI_MARK_END("BP5Reader::broadcast_metadata");
-        CALI_MARK_BEGIN("BP5Reader::metadata-acquisition");
+        CALI_MARK_END("BP5Reader::metadata-acquisition");
 
         // broadcast metadata index buffer to all ranks from zero
         m_Comm.BroadcastVector(m_MetaMetadata.m_Buffer);
