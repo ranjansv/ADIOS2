@@ -686,7 +686,7 @@ void DaosWriter::EndStep()
 
 
     /* Use MPI_Allgather to gather list_metadata_size from all processes */
-    CALI_MARK_BEGIN("DaosWriter::metadata-stablization");
+    CALI_MARK_BEGIN("DaosWriter::metadata-stabilization");
     uint64_t list_metadata_size[m_Comm.Size()];
     MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
 
@@ -729,7 +729,7 @@ void DaosWriter::EndStep()
 	CALI_MARK_END("DaosWriter::daos_kv_put");
     }
 
-    CALI_MARK_END("DaosWriter::metadata-stablization");
+    CALI_MARK_END("DaosWriter::metadata-stabilization");
 
     //delete[] list_metadata_size;
  
