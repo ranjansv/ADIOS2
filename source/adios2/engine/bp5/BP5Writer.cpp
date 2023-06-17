@@ -560,6 +560,7 @@ void BP5Writer::EndStep()
     /*
      * Two-step metadata aggregation
      */
+    CALI_MARK_BEGIN("BP5Writer::metadata-stabilization");
     m_Profiler.Start("meta_lvl1");
     CALI_MARK_BEGIN("BP5Writer::meta_lvl1");
     std::vector<char> MetaBuffer;
@@ -615,7 +616,6 @@ void BP5Writer::EndStep()
                 WriterDataPositions);
         }
     } // level 1
-    CALI_MARK_BEGIN("BP5Writer::metadata-stabilization");
     CALI_MARK_END("BP5Writer::meta_lvl1");
     m_Profiler.Stop("meta_lvl1");
     m_Profiler.Start("meta_lvl2");
