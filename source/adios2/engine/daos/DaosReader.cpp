@@ -183,11 +183,9 @@ void DaosReader::ReadMetadata(size_t Step) {
           #endif
     }
     CALI_MARK_END("DaosReader::loop-get");
- 
-
-
-    
   }
+
+  m_Comm.Barrier();
 
   // broadcast buffer to all ranks from zero
    CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
