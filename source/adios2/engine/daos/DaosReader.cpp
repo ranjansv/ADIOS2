@@ -28,8 +28,6 @@ using TP = std::chrono::high_resolution_clock::time_point;
 #define DEBUG_BADALLOC 
 #undef DEBUG_BADALLOC
 
-#define MAX_IO_REQS 100
-
 
 namespace adios2 {
 namespace core {
@@ -53,6 +51,18 @@ DaosReader::~DaosReader() {
     DestructorClose(m_FailVerbose);
   }
   m_IsOpen = false;
+
+   //// Cleanup events
+   //for (int i = 0; i < MAX_IO_REQS; i++) {
+   //  CALI_MARK_BEGIN("DaosReader::EventFinalization");
+   //  // Call daos_event_fini() for int type
+   //  daos_event_fini(&ev[i]);
+   //  CALI_MARK_END("DaosReader::EventFinalization");
+   //}
+
+  CALI_MARK_BEGIN("DaosReader::daos_eq_destroy()");
+  daos_eq_destroy(eq, 0);
+  CALI_MARK_END("DaosReader::daos_eq_destroy()");
 }
 
 void DaosReader::DestructorClose(bool Verbose) noexcept {
@@ -77,22 +87,8 @@ void DaosReader::ReadMetadata(size_t Step) {
 
   //Reader rank 0 -readers all metadata
   if(m_Comm.Rank() == 0) {
-  daos_event_t ev[MAX_IO_REQS], *evp[MAX_IO_REQS];
-  daos_handle_t eq;
 
-  // Create event queue;
-  CALI_MARK_BEGIN("DaosReader::EventQueueCreation");
-  rc = daos_eq_create(&eq);
-  CALI_MARK_END("DaosReader::EventQueueCreation");
-  ASSERT(rc == 0, "daos_eq_create() failed with %d", rc);
   
-  // Init events
-  for (int i = 0; i < MAX_IO_REQS; i++) {
-    CALI_MARK_BEGIN("DaosReader::EventInitialization");
-    rc = daos_event_init(&ev[i], eq, NULL);
-    CALI_MARK_END("DaosReader::EventInitialization");
-    ASSERT(rc == 0, "event init failed with %d", rc);
-  }
    CALI_MARK_BEGIN("DaosReader::loop-getsize");
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
         char key[1000];
@@ -189,19 +185,7 @@ void DaosReader::ReadMetadata(size_t Step) {
     CALI_MARK_END("DaosReader::loop-get");
  
 
-   // Cleanup events
-   for (int i = 0; i < MAX_IO_REQS; i++) {
-     CALI_MARK_BEGIN("DaosReader::EventFinalization");
-   
-     // Call daos_event_fini() for int type
-     daos_event_fini(&ev[i]);
-   
-     CALI_MARK_END("DaosReader::EventFinalization");
-   }
 
-   CALI_MARK_BEGIN("DaosReader::daos_eq_destroy()");
-   daos_eq_destroy(eq, 0);
-   CALI_MARK_END("DaosReader::daos_eq_destroy()");
     
   }
 
@@ -866,6 +850,20 @@ void DaosReader::InitDAOS() {
   rc = daos_kv_open(coh, oid, DAOS_OO_RO, &oh, NULL);
   ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
   CALI_MARK_END("DaosReader::daos_kv_open");
+
+  // Create event queue;
+  CALI_MARK_BEGIN("DaosReader::EventQueueCreation");
+  rc = daos_eq_create(&eq);
+  CALI_MARK_END("DaosReader::EventQueueCreation");
+  ASSERT(rc == 0, "daos_eq_create() failed with %d", rc);
+
+  // Init events
+  for (int i = 0; i < MAX_IO_REQS; i++) {
+    CALI_MARK_BEGIN("DaosReader::EventInitialization");
+    rc = daos_event_init(&ev[i], eq, NULL);
+    CALI_MARK_END("DaosReader::EventInitialization");
+    ASSERT(rc == 0, "event init failed with %d", rc);
+  }
 }
 
 void DaosReader::InstallMetaMetaData(format::BufferSTL buffer) {

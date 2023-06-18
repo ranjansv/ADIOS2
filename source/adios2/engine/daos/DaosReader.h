@@ -43,6 +43,8 @@
             FAIL(__VA_ARGS__);                                                 \
     } while (0)
 
+#define MAX_IO_REQS 100
+
 namespace adios2
 {
 namespace core
@@ -135,6 +137,9 @@ private:
     /* Declare variables for the KV object */
     daos_handle_t oh;
     daos_obj_id_t oid;
+
+    daos_handle_t eq;
+    daos_event_t ev[MAX_IO_REQS], *evp[MAX_IO_REQS];
 
     char node[128] = "unknown";
 
