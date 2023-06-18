@@ -137,6 +137,8 @@ void DaosReader::ReadMetadata(size_t Step) {
     m_step_offset += MAX_AGGREGATE_METADATA_SIZE;  
   }
 
+  m_Comm.Barrier();
+
   // broadcast buffer to all ranks from zero
    CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
    m_Comm.BroadcastVector(m_Metadata.m_Buffer);
