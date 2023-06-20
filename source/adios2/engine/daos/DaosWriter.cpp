@@ -697,7 +697,11 @@ void DaosWriter::EndStep()
 	    offset += list_metadata_size[i];
 	}
     }
-
+/*
+    if (m_Comm.Rank() == 0) {
+	    std::cout << "rank 0, metadata size: " << list_metadata_size[0] << std::endl;
+    }
+*/
     //Setup I/O Descriptor  
     iod.arr_nr = 1;
     rg.rg_len = list_metadata_size[m_Comm.Rank()]; 
