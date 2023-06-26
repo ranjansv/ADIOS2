@@ -579,6 +579,7 @@ void BP5Writer::EndStep()
     if (m_Aggregator->m_Comm.Size() > 1)
     { // level 1
         m_Profiler.Start("meta_gather1");
+        CALI_MARK_BEGIN("BP5Writer::metadata-stabilization");
         CALI_MARK_BEGIN("BP5Writer::meta_gather1");
         size_t LocalSize = MetaBuffer.size();
         std::vector<size_t> RecvCounts =
