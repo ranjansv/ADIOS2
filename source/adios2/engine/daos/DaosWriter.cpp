@@ -24,6 +24,9 @@
 #include <iostream>
 #include <memory> // make_shared
 
+#define DEBUG_BADALLOC
+#undef DEBUG_BADALLOC
+
 
 namespace adios2
 {
@@ -702,6 +705,15 @@ void DaosWriter::EndStep()
 	    std::cout << "rank 0, metadata size: " << list_metadata_size[0] << std::endl;
     }
 */
+
+#ifdef DEBUG_BADALLOC
+    char *ptr = TSInfo.MetaEncodeBuffer->Data();
+    printf("DaosWriter::EndStep() Metadatablock, step = %d, WriterRank = %d\n", m_WriterStep, m_Comm.Rank());
+    for(int i = 0; i < 12; i++)
+            printf("%02x ", ptr[i]);
+    printf("\n");
+#endif
+
     //Setup I/O Descriptor  
     iod.arr_nr = 1;
     rg.rg_len = list_metadata_size[m_Comm.Rank()]; 

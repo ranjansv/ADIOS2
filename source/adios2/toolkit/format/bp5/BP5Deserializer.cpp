@@ -641,7 +641,7 @@ void BP5Deserializer::InstallMetaData(void *MetadataBlock, size_t BlockLen,
     static int DumpMetadata = -1;
     char *ptr = (char *) MetadataBlock;
 #ifdef DEBUG_BADALLOC
-    printf("BP5Deserializer::InstallMetaData Metadatablock\n");
+    printf("BP5Deserializer::InstallMetaData Metadatablock, WriterRank %lu\n", WriterRank);
     for(int i = 0; i < 20; i++)
 	    printf("%02x ", ptr[i]);
     printf("\n");

@@ -90,9 +90,11 @@ void DaosReader::ReadMetadata(size_t Step) {
 	total_mdsize += list_writer_mdsize[WriterRank];
     }
 
-    //std::cout << "Step: " << Step;
-    //std::cout << ", WriterCount: " << WriterCount;
-    //std::cout << ", total_mdsize: " << total_mdsize << std::endl;
+#ifdef DEBUG_BADALLOC
+    std::cout << "Step: " << Step;
+    std::cout << ", WriterCount: " << WriterCount;
+    std::cout << ", total_mdsize: " << total_mdsize << std::endl;
+#endif
 
     //Allocate memory for m_Metadata
     buffer_size = sizeof(uint64_t) * (2 * WriterCount + 1) + total_mdsize;
@@ -135,6 +137,16 @@ void DaosReader::ReadMetadata(size_t Step) {
     CALI_MARK_END("DaosReader::daos_array_read");
 
     m_step_offset += MAX_AGGREGATE_METADATA_SIZE;  
+#ifdef DEBUG_BADALLOC
+    size_t offset = 0;
+    for(int j = 0; j < WriterCount; j++) {
+    printf("DaosReader:ReadMetadata() Metadatablock, step = %lu, WriterRank = %d\n", Step, j);
+    offset += list_writer_mdsize[j];
+    for(int i = 0; i < 12; i++)
+            printf("%02x ", meta_buff[offset + i]);
+    printf("\n");
+    }
+#endif
   }
 
   m_Comm.Barrier();
@@ -168,7 +180,7 @@ void DaosReader::InstallMetadataForTimestep(size_t Step) {
         else
         {
             CALI_MARK_BEGIN("BP5Reader::InstallMetaData");
-            m_BP5Deserializer->InstallMetaData(ThisMD, ThisMDSize, WriterRank);
+            //m_BP5Deserializer->InstallMetaData(ThisMD, ThisMDSize, WriterRank);
             CALI_MARK_END("BP5Reader::InstallMetaData");
         }
         MDPosition += ThisMDSize;
