@@ -44,6 +44,7 @@
     } while (0)
 
 #define MAX_AGGREGATE_METADATA_SIZE (5ULL * 1024 * 1024 * 1024)
+#define chunk_size_1mb 1048576
 
 namespace adios2
 {

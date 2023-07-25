@@ -697,7 +697,8 @@ void DaosWriter::EndStep()
     size_t offset = 0;
     for(int i = 0; i < m_Comm.Size(); i++) {
         if (i < m_Comm.Rank()) {
-	    offset += list_metadata_size[i];
+	    //offset += list_metadata_size[i];
+	    offset +=  m_Comm.Rank() * chunk_size_1mb;
 	}
     }
 /*

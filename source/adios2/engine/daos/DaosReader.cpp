@@ -73,9 +73,12 @@ void DaosReader::ReadMetadata(size_t Step) {
       size_t buffer_size = 0;
       size_t sizeof_list_writer_mdsize;
       uint64_t list_writer_mdsize[WriterCount];
+      daos_range_t *list_rg = NULL;
 
      //Get list of Metadata sizes for all writers
      char key[1000];
+
+     list_rg = (daos_range_t *) malloc(WriterCount * sizeof(daos_range_t));
 
      sprintf(key, "step%d", Step);
      sizeof_list_writer_mdsize = sizeof(uint64_t) * WriterCount;
@@ -108,6 +111,8 @@ void DaosReader::ReadMetadata(size_t Step) {
     int index = 1; 
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
        ptr[index] = list_writer_mdsize[WriterRank]; 
+       list_rg[WriterRank].rg_len = list_writer_mdsize[WriterRank];
+       list_rg[WriterRank].rg_idx = m_step_offset + WriterRank * chunk_size_1mb;
        index++;
     }
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
@@ -120,10 +125,8 @@ void DaosReader::ReadMetadata(size_t Step) {
 
     //Now read in the actual metadata for reach writer
     //Setup I/O Descriptor  
-    iod.arr_nr = 1;
-    rg.rg_len = total_mdsize;
-    rg.rg_idx = m_step_offset;
-    iod.arr_rgs = &rg;
+    iod.arr_nr = WriterCount;
+    iod.arr_rgs = list_rg;
 
     /** set memory location */
     sgl.sg_nr = 1;
@@ -147,6 +150,7 @@ void DaosReader::ReadMetadata(size_t Step) {
     printf("\n");
     }
 #endif
+    free(list_rg);
   }
 
   m_Comm.Barrier();
