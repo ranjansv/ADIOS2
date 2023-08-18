@@ -684,7 +684,7 @@ void DaosWriter::EndStep()
     CALI_MARK_BEGIN("DaosWriter::metadata-stabilization");
     char key[1000];
     int rc;
-    sprintf(key, "step%d-rank%d", m_WriterStep, m_Comm.Rank());
+    sprintf(key, "rank%d", m_WriterStep, m_Comm.Rank());
 
     CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
     rc = daos_kv_put(oh, DAOS_TX_NONE, 0, key,
@@ -692,6 +692,24 @@ void DaosWriter::EndStep()
                      TSInfo.MetaEncodeBuffer->Data(), NULL);
     ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
     CALI_MARK_END("DaosWriter::daos_kv_put");
+
+    m_Comm.Barrier();
+    if (m_Comm.Rank() == 0) {
+        daos_epoch_t epoch;
+
+        //Create Snapshot
+        CALI_MARK_BEGIN("DaosWriter::daos_cont_create_snap");
+        rc = daos_cont_create_snap(coh, &epoch, NULL, NULL);
+        ASSERT(rc == 0, "daos_cont_create_snap failed with %d", rc);
+        CALI_MARK_END("DaosWriter::daos_cont_create_snap");
+
+        //Write epoch to fd_snap
+        CALI_MARK_BEGIN("DaosWriter::write_snap");
+        ssize_t bytes_written = write(fd_snap, &epoch, sizeof(epoch));
+        ASSERT(bytes_written == sizeof(epoch), "Error writing to snapshot file");
+        CALI_MARK_END("DaosWriter::write_snap");
+    }
+    m_Comm.Barrier();
     CALI_MARK_END("DaosWriter::metadata-stabilization");
 
     if (m_Parameters.AsyncWrite)
@@ -1305,6 +1323,12 @@ void DaosWriter::InitDAOS()
         }
         fprintf(fp, "%" PRIu64 "\n%" PRIu64 "\n", oid.hi, oid.lo);
         fclose(fp);
+
+        const char *buf_snap = "/tmp/dfuse_adios/snapshot.txt";
+
+        // Writing the long integer to a file
+        fd_snap = open(buf_snap, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+        ASSERT(fd_snap != -1, "Error opening snapshot file");
     }
 }
 

@@ -29,6 +29,9 @@
 #include <caliper/cali.h>
 #include <caliper/cali-manager.h>
 #include <mpi.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #define FAIL(fmt, ...)                                                         \
     do                                                                         \
@@ -109,6 +112,8 @@ private:
     /* Declare variables for the KV object */
     daos_handle_t oh;
     daos_obj_id_t oid;
+
+    int fd_snap;
 
     char node[128] = "unknown";
 

@@ -76,6 +76,8 @@ void DaosReader::ReadMetadata(size_t Step) {
   const uint64_t WriterCount = m_WriterMap[m_WriterMapIndex[Step]].WriterCount;
   int rc;
 
+  daos_handle_t th;
+
 
   m_Metadata.Reset(true, false);
   //m_Metadata.Reset(true, true);
@@ -88,6 +90,21 @@ void DaosReader::ReadMetadata(size_t Step) {
   //Reader rank 0 -readers all metadata
   if(m_Comm.Rank() == 0) {
 
+  //Read epoch
+  CALI_MARK_BEGIN("DaosReader::read_snap");
+  ssize_t bytes_read = read(fd_snap, &epoch, sizeof(epoch));
+  ASSERT(bytes_read == sizeof(epoch), "Error reading from snapshot file");
+  CALI_MARK_END("DaosReader::read_snap");
+
+  
+  //Open Snapshot
+  CALI_MARK_BEGIN("DaosReader:open_snap");
+  rc = daos_tx_open_snap(coh, epoch, &th, NULL);
+  ASSERT(rc == 0, "daos_tx_open_snap failed with %d", rc);
+  CALI_MARK_END("DaosReader:open_snap");
+
+
+
   
    CALI_MARK_BEGIN("DaosReader::loop-getsize");
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
@@ -96,10 +113,10 @@ void DaosReader::ReadMetadata(size_t Step) {
          
 
         // Query size of a writer rank's metadata
-        sprintf(key, "step%d-rank%d", Step, WriterRank);
+        sprintf(key, "rank%d", WriterRank);
 
         CALI_MARK_BEGIN("DaosReader::daos_kv_getsize");
-        rc = daos_kv_get(oh, DAOS_TX_NONE, 0, key, &writer_mdsize, NULL, NULL);
+        rc = daos_kv_get(oh, th, 0, key, &writer_mdsize, NULL, NULL);
         ASSERT(rc == 0, "daos_kv_get() failed to get size with %d", rc);
         CALI_MARK_END("DaosReader::daos_kv_getsize");
 
@@ -150,7 +167,7 @@ void DaosReader::ReadMetadata(size_t Step) {
 
             sprintf(key, "step%d-rank%d", Step, WriterRank);
             CALI_MARK_BEGIN("DaosReader::daos_kv_get");
-            rc = daos_kv_get(oh, DAOS_TX_NONE, 0, key, 
+            rc = daos_kv_get(oh, th, 0, key, 
 		&ThisMDSize, &meta_buff[index], &ev[batchLimit]);
             ASSERT(rc == 0, "daos_kv_get() failed to read metadata with %d", rc);
             CALI_MARK_END("DaosReader::daos_kv_get");
@@ -835,19 +852,19 @@ void DaosReader::InitDAOS() {
       exit(1);
     }
     fclose(fp);
+
+    // Reading the long integer from the file
+    const char *buf_snap = "/tmp/dfuse_adios/snapshot.txt"; 
+    fd_snap = open(buf_snap, O_RDONLY);
+    ASSERT(fd_snap != -1, "Error opening snapshot file");
+
+    // Open KV object
+    CALI_MARK_BEGIN("DaosReader::daos_kv_open");
+    rc = daos_kv_open(coh, oid, DAOS_OO_RO, &oh, NULL);
+    ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
+    CALI_MARK_END("DaosReader::daos_kv_open");
   }
 
-  // Rank 0 will broadcast the DAOS KV OID
-  MPI_Bcast(&oid, sizeof(daos_obj_id_t), MPI_BYTE, 0, MPI_COMM_WORLD);
-  //MPI_Bcast(&oid.hi, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-  //MPI_Bcast(&oid.lo, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-  CALI_MARK_END("DaosReader::fscanf-oid-n-broadcast");
-
-  // Open KV object
-  CALI_MARK_BEGIN("DaosReader::daos_kv_open");
-  rc = daos_kv_open(coh, oid, DAOS_OO_RO, &oh, NULL);
-  ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
-  CALI_MARK_END("DaosReader::daos_kv_open");
 
   // Create event queue;
   CALI_MARK_BEGIN("DaosReader::EventQueueCreation");

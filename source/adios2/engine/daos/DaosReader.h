@@ -25,6 +25,9 @@
 #include <map>
 #include <mpi.h>
 #include <vector>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include <caliper/cali.h>
 #include <caliper/cali-manager.h>
@@ -140,6 +143,9 @@ private:
 
     daos_handle_t eq;
     daos_event_t ev[MAX_IO_REQS], *evp[MAX_IO_REQS];
+
+    daos_epoch_t epoch;
+    int fd_snap;
 
     char node[128] = "unknown";
 
