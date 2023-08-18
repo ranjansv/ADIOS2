@@ -74,17 +74,44 @@ void DaosReader::ReadMetadata(size_t Step) {
       size_t sizeof_list_writer_mdsize;
       uint64_t list_writer_mdsize[WriterCount];
       daos_range_t *list_rg = NULL;
+      daos_handle_t th;
 
      //Get list of Metadata sizes for all writers
      char key[1000];
 
+     //Read new epoch
+     CALI_MARK_BEGIN("DaosReader::read_epoch");
+     ssize_t bytes_read = read(fd_snap, &epoch, sizeof(epoch));
+     ASSERT(bytes_read == sizeof(epoch), "Error reading from snapshot file");
+     CALI_MARK_END("DaosReader::read_epoch");
+
+     //std::cout << "epoch = " << epoch << std::endl;
+
+     //Open snapshot
+     CALI_MARK_BEGIN("DaosReader::daos_tx_open_snap");
+     rc = daos_tx_open_snap(coh, epoch, &th, NULL);
+     ASSERT(rc == 0, "daos_tx_open_snap failed with %d", rc);
+     CALI_MARK_END("DaosReader::daos_tx_open_snap");
+
+    daos_size_t cell_size = 1;
+    daos_size_t chunk_size = 1048576;
+    CALI_MARK_BEGIN("DaosReader::daos_array_open");
+    rc = daos_array_open(coh, oid, th, DAOS_OO_RO, &cell_size, &chunk_size, &oh, NULL);
+    ASSERT(rc == 0, "daos_array_open failed with %d", rc);
+    CALI_MARK_END("DaosReader::daos_array_open");
+
+    CALI_MARK_BEGIN("DaosReader::daos_kv_open");
+    rc = daos_kv_open(coh, mdsize_oid, 0, &mdsize_oh, NULL);
+    ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
+    CALI_MARK_END("DaosReader::daos_kv_open");
+
      list_rg = (daos_range_t *) malloc(WriterCount * sizeof(daos_range_t));
 
-     sprintf(key, "step%d", Step);
+     sprintf(key, "mdsizes");
      sizeof_list_writer_mdsize = sizeof(uint64_t) * WriterCount;
 
      CALI_MARK_BEGIN("DaosReader::daos_kv_get_list_of_mdsize");
-     rc = daos_kv_get(mdsize_oh, DAOS_TX_NONE, 0, key, &sizeof_list_writer_mdsize, 
+     rc = daos_kv_get(mdsize_oh, th, 0, key, &sizeof_list_writer_mdsize, 
                      list_writer_mdsize, NULL);
      ASSERT(rc == 0, "daos_kv_get() failed to read metadata with %d", rc);
      CALI_MARK_END("DaosReader::daos_kv_get_list_of_mdsize");
@@ -112,7 +139,8 @@ void DaosReader::ReadMetadata(size_t Step) {
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
        ptr[index] = list_writer_mdsize[WriterRank]; 
        list_rg[WriterRank].rg_len = list_writer_mdsize[WriterRank];
-       list_rg[WriterRank].rg_idx = m_step_offset + WriterRank * chunk_size_1mb;
+       //list_rg[WriterRank].rg_idx = m_step_offset + WriterRank * chunk_size_1mb;
+       list_rg[WriterRank].rg_idx = WriterRank * chunk_size_1mb;
        index++;
     }
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
@@ -135,11 +163,11 @@ void DaosReader::ReadMetadata(size_t Step) {
 
     //Write Metadata
     CALI_MARK_BEGIN("DaosReader::daos_array_read");
-    rc = daos_array_read(oh, DAOS_TX_NONE, &iod, &sgl, NULL);
+    rc = daos_array_read(oh, th, &iod, &sgl, NULL);
     ASSERT(rc == 0, "daos_array_read() failed to read metadata with %d", rc);
     CALI_MARK_END("DaosReader::daos_array_read");
 
-    m_step_offset += MAX_AGGREGATE_METADATA_SIZE;  
+    //m_step_offset += MAX_AGGREGATE_METADATA_SIZE;  
 #ifdef DEBUG_BADALLOC
     size_t offset = 0;
     for(int j = 0; j < WriterCount; j++) {
@@ -843,18 +871,11 @@ void DaosReader::InitDAOS() {
     }
     fclose(fp);
 
-    daos_size_t cell_size = 1;
-    daos_size_t chunk_size = 1048576;
-    rc = daos_array_open(coh, oid, DAOS_TX_NONE, DAOS_OO_RO, &cell_size, &chunk_size, &oh, NULL);
-    ASSERT(rc == 0, "daos_array_open failed with %d", rc);
 
-    rc = daos_kv_open(coh, mdsize_oid, 0, &mdsize_oh, NULL);
-    ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
+    char *buf_snap = "/tmp/dfuse_adios/snapshot.txt";
+    fd_snap = open(buf_snap, O_RDONLY);
+    ASSERT(fd_snap != -1, "Error opening snapshot file");
   }
-
-  CALI_MARK_BEGIN("DaosReader::array_oh_share");
-  array_oh_share(&oh);
-  CALI_MARK_END("DaosReader::array_oh_share");
 
 }
 

@@ -718,7 +718,8 @@ void DaosWriter::EndStep()
     //Setup I/O Descriptor  
     iod.arr_nr = 1;
     rg.rg_len = list_metadata_size[m_Comm.Rank()]; 
-    rg.rg_idx = m_step_offset + offset;
+    rg.rg_idx = offset;
+    //rg.rg_idx = m_step_offset + offset;
     iod.arr_rgs = &rg;
 
     /** set memory location */ 
@@ -732,19 +733,36 @@ void DaosWriter::EndStep()
     CALI_MARK_END("DaosWriter::daos_array_write");
     
 
-    m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
+    //m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
+
+
+    m_Comm.Barrier();
 
     //Writer Rank 0 -Store the list of metadata size in a KV entry
     if(m_Comm.Rank() == 0) {
         char key[1000];
-	sprintf(key, "step%d", m_WriterStep);
+	sprintf(key, "mdsizes");
 	CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
 	int rc = daos_kv_put(mdsize_oh, DAOS_TX_NONE, 0, key, 
 	       	 sizeof(uint64_t) * m_Comm.Size(), 
 	       	 list_metadata_size, NULL);
 	ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
 	CALI_MARK_END("DaosWriter::daos_kv_put");
+
+	//Container Snapshot
+	daos_epoch_t epoch;
+	CALI_MARK_BEGIN("DaosWriter::daos_cont_create_snap");
+	rc = daos_cont_create_snap(coh, &epoch, NULL, NULL);
+	ASSERT(rc == 0, "daos_cont_create_snap failed with %d", rc);
+	CALI_MARK_END("DaosWriter::daos_cont_create_snap");
+
+	CALI_MARK_BEGIN("DaosWriter::write_epoch");
+        ssize_t bytes_written = write(fd_snap, &epoch, sizeof(epoch));
+        ASSERT(bytes_written == sizeof(epoch), "Error writing to snapshot file");
+	CALI_MARK_END("DaosWriter::write_epoch");
+
     }
+    m_Comm.Barrier();
 
     CALI_MARK_END("DaosWriter::metadata-stabilization");
 
@@ -1355,6 +1373,11 @@ void DaosWriter::InitDAOS()
         rc = daos_kv_open(coh, mdsize_oid, 0, &mdsize_oh, NULL);
         ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
         CALI_MARK_END("DaosWriter::daos_kv_open");
+
+	// Open snapshot file
+	const char *buf_snap = "/tmp/dfuse_adios/snapshot.txt";
+        fd_snap = open(buf_snap, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+	ASSERT(fd_snap != -1, "Error opening snapshot file");
     }
     CALI_MARK_BEGIN("DaosWriter::array_oh_share");
     array_oh_share(&oh);

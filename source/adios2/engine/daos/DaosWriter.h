@@ -29,6 +29,9 @@
 #include <caliper/cali.h>
 #include <caliper/cali-manager.h>
 #include <mpi.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #define FAIL(fmt, ...)                                                         \
     do                                                                         \
@@ -117,6 +120,8 @@ private:
     daos_range_t rg;
     d_sg_list_t sgl;
     d_iov_t iov;
+
+    int fd_snap;
 
     size_t m_step_offset = 0;
 

@@ -25,6 +25,10 @@
 #include <map>
 #include <mpi.h>
 #include <vector>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
 
 #include <caliper/cali.h>
 #include <caliper/cali-manager.h>
@@ -144,6 +148,9 @@ private:
     d_iov_t iov;
 
     size_t m_step_offset = 0;
+
+    int fd_snap;
+    daos_epoch_t epoch;
 
     char node[128] = "unknown";
 
