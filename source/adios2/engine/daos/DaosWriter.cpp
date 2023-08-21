@@ -684,7 +684,7 @@ void DaosWriter::EndStep()
     CALI_MARK_BEGIN("DaosWriter::metadata-stabilization");
     char key[1000];
     int rc;
-    sprintf(key, "rank%d", m_WriterStep, m_Comm.Rank());
+    sprintf(key, "rank%d", m_Comm.Rank());
 
     CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
     rc = daos_kv_put(oh, DAOS_TX_NONE, 0, key,

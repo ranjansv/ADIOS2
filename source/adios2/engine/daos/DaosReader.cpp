@@ -165,7 +165,7 @@ void DaosReader::ReadMetadata(size_t Step) {
         while (WriterRank < WriterCount && batchLimit < MAX_IO_REQS) {
             ThisMDSize = list_writer_mdsize[WriterRank];
 
-            sprintf(key, "step%d-rank%d", Step, WriterRank);
+            sprintf(key, "rank%d", WriterRank);
             CALI_MARK_BEGIN("DaosReader::daos_kv_get");
             rc = daos_kv_get(oh, th, 0, key, 
 		&ThisMDSize, &meta_buff[index], &ev[batchLimit]);
