@@ -735,8 +735,9 @@ void DaosWriter::EndStep()
 
     //m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
 
-
+    CALI_MARK_BEGIN("DaosWriter::barrier_before_snapshot");
     m_Comm.Barrier();
+    CALI_MARK_END("DaosWriter::barrier_before_snapshot");
 
     //Writer Rank 0 -Store the list of metadata size in a KV entry
     if(m_Comm.Rank() == 0) {
@@ -762,7 +763,10 @@ void DaosWriter::EndStep()
 	CALI_MARK_END("DaosWriter::write_epoch");
 
     }
+
+    CALI_MARK_BEGIN("DaosWriter::barrier_after_snapshot");
     m_Comm.Barrier();
+    CALI_MARK_END("DaosWriter::barrier_after_snapshot");
 
     CALI_MARK_END("DaosWriter::metadata-stabilization");
 
