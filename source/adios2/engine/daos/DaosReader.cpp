@@ -1137,8 +1137,7 @@ size_t DaosReader::ParseMetadataIndex(format::BufferSTL &bufferSTL,
   int n = 0;    // a loop counter for current run4
   int nrec = 0; // number of records in current run
 
-  while (position < buffer.size() &&
-         metadataSizeToRead < maxMetadataSizeInMemory) {
+  while (position < buffer.size()) {
 
     const unsigned char recordID = helper::ReadValue<unsigned char>(
         buffer, position, m_Minifooter.IsLittleEndian);
