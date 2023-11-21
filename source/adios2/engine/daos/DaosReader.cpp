@@ -138,18 +138,18 @@ void DaosReader::ReadMetadata(size_t Step) {
    for (int j = 0; j < WriterCount; j++)
    total_mdsize += list_writer_mdsize[j];
 
-   CALI_MARK_BEGIN("DaosReader::m_Metadata.Resize()");
+   
 
     //Allocate memory for m_Metadata
     buffer_size = sizeof(uint64_t) * (2 * WriterCount + 1) + total_mdsize;
     m_Metadata.Resize(buffer_size, "allocating metadata buffer, "
                                    "in call to DaosReader Open");
-   CALI_MARK_END("DaosReader::m_Metadata.Resize()");
+   
 
     uint64_t * ptr = (uint64_t*) m_Metadata.m_Buffer.data();
 
     //The Metadata buffer is contructed like in WriteMetadata()
-    CALI_MARK_BEGIN("DaosReader::Copy-metadata-sizes");
+    
     ptr[0] = total_mdsize;
     int index = 1; 
     for (WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
@@ -160,7 +160,7 @@ void DaosReader::ReadMetadata(size_t Step) {
        ptr[index] = 0;
        index++;
     }
-    CALI_MARK_END("DaosReader::Copy-metadata-sizes");
+    
 
     char * meta_buff = (char*) &ptr[index];
     index = 0;
