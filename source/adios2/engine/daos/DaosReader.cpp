@@ -81,12 +81,12 @@ void DaosReader::ReadMetadata(size_t Step) {
 
   size_t total_mdsize = 0;
   size_t buffer_size = 0;
-  std::vector<size_t> list_writer_mdsize;
-  list_writer_mdsize.reserve(WriterCount);
+  
 
   //Reader rank 0 -readers all metadata
   if(m_Comm.Rank() == 0) {
-
+   std::vector<size_t> list_writer_mdsize;
+   list_writer_mdsize.reserve(WriterCount);
    char key[1000];
    
 
