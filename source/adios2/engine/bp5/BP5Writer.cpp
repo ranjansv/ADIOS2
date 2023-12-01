@@ -552,7 +552,7 @@ void BP5Writer::EndStep()
     m_AsyncWriteLock.unlock();
     //WriteData will free TSInfo.DataBuffer
     WriteData(TSInfo.DataBuffer);
-    delete TSInfo.DataBuffer;
+    //delete TSInfo.DataBuffer;
     TSInfo.DataBuffer = NULL;
 
     m_Profiler.Stop("AWD");
