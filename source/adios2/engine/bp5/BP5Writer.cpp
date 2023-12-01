@@ -551,7 +551,7 @@ void BP5Writer::EndStep()
     m_flagRush = false;
     m_AsyncWriteLock.unlock();
     //WriteData will free TSInfo.DataBuffer
-    //RSV WriteData(TSInfo.DataBuffer);
+    WriteData(TSInfo.DataBuffer);
     delete TSInfo.DataBuffer;
     TSInfo.DataBuffer = NULL;
 
