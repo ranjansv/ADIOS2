@@ -552,7 +552,7 @@ void DaosWriter::EndStep()
     m_AsyncWriteLock.lock();
     m_flagRush = false;
     m_AsyncWriteLock.unlock();
-    //RSV WriteData(databuf);
+    WriteData(databuf);
     m_Profiler.Stop("AWD");
 
     /*

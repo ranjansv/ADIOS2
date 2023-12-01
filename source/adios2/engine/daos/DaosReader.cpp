@@ -292,7 +292,7 @@ void DaosReader::EndStep() {
   }
   m_BetweenStepPairs = false;
   PERFSTUBS_SCOPED_TIMER("DaosReader::EndStep");
-  //RSV PerformGets();
+  PerformGets();
 }
 
 std::pair<double, double>
