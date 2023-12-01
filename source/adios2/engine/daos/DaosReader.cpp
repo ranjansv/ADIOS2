@@ -28,6 +28,7 @@ using TP = std::chrono::high_resolution_clock::time_point;
 #define DEBUG_BADALLOC 
 #undef DEBUG_BADALLOC
 
+
 namespace adios2 {
 namespace core {
 namespace engine {
@@ -94,9 +95,7 @@ void DaosReader::ReadMetadata(size_t Step) {
     }
 
 #ifdef DEBUG_BADALLOC
-    std::cout << "Step: " << Step;
-    std::cout << ", WriterCount: " << WriterCount;
-    std::cout << ", total_mdsize: " << total_mdsize << std::endl;
+    std::cout << "ReadMetadata() - Step: " << Step << ", WriterCount: " << WriterCount << ", total_mdsize: " << total_mdsize << std::endl;
 #endif
 
     //Allocate memory for m_Metadata
@@ -143,7 +142,7 @@ void DaosReader::ReadMetadata(size_t Step) {
 #ifdef DEBUG_BADALLOC
     size_t offset = 0;
     for(int j = 0; j < WriterCount; j++) {
-    printf("DaosReader:ReadMetadata() Metadatablock, step = %lu, WriterRank = %d\n", Step, j);
+    printf("ReadMetadata() Metadatablock, step = %lu, WriterRank = %d\n", Step, j);
     offset += list_writer_mdsize[j];
     for(int i = 0; i < 12; i++)
             printf("%02x ", meta_buff[offset + i]);
@@ -184,7 +183,7 @@ void DaosReader::InstallMetadataForTimestep(size_t Step) {
         else
         {
             CALI_MARK_BEGIN("BP5Reader::InstallMetaData");
-            //m_BP5Deserializer->InstallMetaData(ThisMD, ThisMDSize, WriterRank);
+            m_BP5Deserializer->InstallMetaData(ThisMD, ThisMDSize, WriterRank);
             CALI_MARK_END("BP5Reader::InstallMetaData");
         }
         MDPosition += ThisMDSize;
@@ -307,7 +306,7 @@ void DaosReader::EndStep() {
   }
   m_BetweenStepPairs = false;
   PERFSTUBS_SCOPED_TIMER("DaosReader::EndStep");
-  //RSV PerformGets();
+  PerformGets();
 }
 
 std::pair<double, double>

@@ -28,6 +28,7 @@
 #undef DEBUG_BADALLOC
 
 
+
 namespace adios2
 {
 namespace core
@@ -556,7 +557,7 @@ void DaosWriter::EndStep()
     m_AsyncWriteLock.lock();
     m_flagRush = false;
     m_AsyncWriteLock.unlock();
-    //RSV WriteData(databuf);
+    WriteData(databuf);
     m_Profiler.Stop("AWD");
 
     /*
@@ -694,13 +695,8 @@ void DaosWriter::EndStep()
     MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
 
 
-    size_t offset = 0;
-    for(int i = 0; i < m_Comm.Size(); i++) {
-        if (i < m_Comm.Rank()) {
-	    //offset += list_metadata_size[i];
-	    offset +=  m_Comm.Rank() * chunk_size_1mb;
-	}
-    }
+    size_t offset = m_Comm.Rank() * chunk_size_1mb;
+
 /*
     if (m_Comm.Rank() == 0) {
 	    std::cout << "rank 0, metadata size: " << list_metadata_size[0] << std::endl;
