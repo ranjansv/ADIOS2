@@ -1346,7 +1346,7 @@ void DaosWriter::InitDAOS()
 	/** Create a DAOS KV object to store metadata sizes */
 	mdsize_oid.hi = 0;
 	mdsize_oid.lo = 23;
-	rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OF_KV_FLAT, OC_SX, 0, 0);
+	rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
 	ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 
         // Open array object
