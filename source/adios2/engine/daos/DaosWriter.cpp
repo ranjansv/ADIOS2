@@ -1348,7 +1348,7 @@ void DaosWriter::InitDAOS()
 
         // Open array object
         CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
-        rc = daos_kv_open(coh, mdsize_oid, 0, &mdsize_oh, NULL);
+        rc = daos_kv_open(coh, mdsize_oid, DAOS_OO_RW, &mdsize_oh, NULL);
         ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
         CALI_MARK_END("DaosWriter::daos_kv_open");
     }
