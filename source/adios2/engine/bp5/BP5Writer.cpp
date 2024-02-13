@@ -545,7 +545,7 @@ void BP5Writer::EndStep()
     m_Profiler.Stop("close_ts");
 
     m_Profiler.Start("AWD");
-    CALI_MARK_BEGIN("BP5Writer::writedata");
+    CALI_MARK_BEGIN("BP5Writer::WriteData");
     // TSInfo destructor would delete the DataBuffer so we need to save it
     // for async IO and let the writer free it up when not needed anymore
     m_AsyncWriteLock.lock();
@@ -555,7 +555,7 @@ void BP5Writer::EndStep()
     WriteData(TSInfo.DataBuffer);
     //delete TSInfo.DataBuffer;
     TSInfo.DataBuffer = NULL;
-    CALI_MARK_END("BP5Writer::writedata");
+    CALI_MARK_END("BP5Writer::WriteData");
     m_Profiler.Stop("AWD");
 
     /*
