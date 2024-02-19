@@ -97,7 +97,7 @@ private:
     /* DAOS declarations */
 
     uuid_t pool_uuid, cont_uuid;
-    char *pool_label = "test";
+    char *pool_label = "CSC250STDM11_CNDA";
     char *cont_label = "adios-daos-engine-cont";
 
     /* Declare variables for pool and container handles */

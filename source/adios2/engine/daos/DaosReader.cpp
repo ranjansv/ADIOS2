@@ -844,7 +844,7 @@ void DaosReader::InitDAOS() {
     rc = daos_array_open(coh, oid, DAOS_TX_NONE, DAOS_OO_RO, &cell_size, &chunk_size, &oh, NULL);
     ASSERT(rc == 0, "daos_array_open failed with %d", rc);
 
-    rc = daos_kv_open(coh, mdsize_oid, 0, &mdsize_oh, NULL);
+    rc = daos_kv_open(coh, mdsize_oid, DAOS_OO_RO, &mdsize_oh, NULL);
     ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
   }
 
