@@ -847,6 +847,7 @@ void DaosReader::InitDAOS() {
     rc = daos_kv_open(coh, mdsize_oid, DAOS_OO_RO, &mdsize_oh, NULL);
     ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
   }
+  CALI_MARK_END("DaosReader::fscanf-oid-n-broadcast");
 
   CALI_MARK_BEGIN("DaosReader::array_oh_share");
   array_oh_share(&oh);
