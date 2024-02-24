@@ -1279,7 +1279,7 @@ void DaosWriter::InitDAOS()
         /** Open a DAOS KV object */
         //rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
         //rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_S1, 0, 0);
-        rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_SX, 0, 0);
+        rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
         ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
     }
 
@@ -1291,7 +1291,7 @@ void DaosWriter::InitDAOS()
 
     // Open KV object
     CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
-    rc = daos_kv_open(coh, oid, 0, &oh, NULL);
+    rc = daos_kv_open(coh, oid, DAOS_OO_RW, &oh, NULL);
     ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
     CALI_MARK_END("DaosWriter::daos_kv_open");
 
