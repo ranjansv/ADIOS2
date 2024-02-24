@@ -545,6 +545,7 @@ void DaosWriter::EndStep()
     m_Profiler.Stop("close_ts");
 
     m_Profiler.Start("AWD");
+    CALI_MARK_BEGIN("DaosWriter::WriteData");
     // TSInfo destructor would delete the DataBuffer so we need to save it
     // for async IO and let the writer free it up when not needed anymore
     adios2::format::BufferV *databuf = TSInfo.DataBuffer;
@@ -552,7 +553,8 @@ void DaosWriter::EndStep()
     m_AsyncWriteLock.lock();
     m_flagRush = false;
     m_AsyncWriteLock.unlock();
-    //RSV WriteData(databuf);
+    WriteData(databuf);
+    CALI_MARK_END("DaosWriter::WriteData");
     m_Profiler.Stop("AWD");
 
     /*
