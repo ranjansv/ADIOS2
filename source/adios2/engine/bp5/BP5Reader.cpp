@@ -972,7 +972,8 @@ size_t BP5Reader::ParseMetadataIndex(format::BufferSTL &bufferSTL,
     size_t maxMetadataSizeInMemory = adios2::MaxSizeT;
     if (m_OpenMode == Mode::Read)
     {
-        maxMetadataSizeInMemory = 16777216; // 16MB
+        //maxMetadataSizeInMemory = 16777216; // 16MB
+        maxMetadataSizeInMemory = 5 * 1024 * m_Comm.Size();  // Read one step at a time
     }
     size_t metadataSizeToRead = 0;
 
