@@ -1293,7 +1293,7 @@ void DaosWriter::InitDAOS()
     CALI_MARK_BEGIN("DaosWriter::daos_init");
     rc = daos_init();
     ASSERT(rc == 0, "daos_init failed with %d", rc);
-    CALI_MARK_END("DaosWriter::daos_init");
+    CALI_MARK_END("DaosWriter::daos_init");    
 
     rc = gethostname(node, sizeof(node));
     ASSERT(rc == 0, "buffer for hostname too small");
@@ -1301,6 +1301,10 @@ void DaosWriter::InitDAOS()
     CALI_MARK_BEGIN("DaosWriter::daos_pool_connect");
     if (m_Comm.Rank() == 0)
     {
+        // Read env variable DAOS_POOL and set pool_label
+        const char* pool_label = std::getenv("DAOS_POOL");
+        ASSERT(pool_label != NULL, "DAOS_POOL environment variable not set");
+        
         /** connect to the just created DAOS pool */
         rc = daos_pool_connect(pool_label, DSS_PSETID,
                                // DAOS_PC_EX ,
@@ -1320,6 +1324,10 @@ void DaosWriter::InitDAOS()
     CALI_MARK_BEGIN("DaosWriter::daos_cont_open");
     if (m_Comm.Rank() == 0)
     {
+        // Read env variable DAOS_CONT and set cont_label
+        const char* cont_label = std::getenv("DAOS_CONT");
+        ASSERT(cont_label != NULL, "DAOS_CONT environment variable not set");
+
         /** open container */
         rc = daos_cont_open(poh, cont_label, DAOS_COO_RW, &coh, NULL, NULL);
         ASSERT(rc == 0, "container open failed with %d", rc);
@@ -1335,21 +1343,21 @@ void DaosWriter::InitDAOS()
     {
         CALI_MARK_BEGIN("DaosWriter::create-daos-array");
         /** Open a DAOS array object */
-	daos_size_t cell_size = 1;
-	daos_size_t chunk_size = 1048576;
-	oid.hi = 0;
-	oid.lo = 57;
-	daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
-        ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
-	rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
-        ASSERT(rc == 0, "daos_array_create failed with %d", rc);
-        CALI_MARK_END("DaosWriter::create-daos-array");
+        daos_size_t cell_size = 1;
+        daos_size_t chunk_size = 1048576;
+        oid.hi = 0;
+        oid.lo = 57;
+        daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
+            ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
+        rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
+            ASSERT(rc == 0, "daos_array_create failed with %d", rc);
+            CALI_MARK_END("DaosWriter::create-daos-array");
 
-	/** Create a DAOS KV object to store metadata sizes */
-	mdsize_oid.hi = 0;
-	mdsize_oid.lo = 23;
-	rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
-	ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
+        /** Create a DAOS KV object to store metadata sizes */
+        mdsize_oid.hi = 0;
+        mdsize_oid.lo = 23;
+        rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+        ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 
         // Open array object
         CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
@@ -1360,9 +1368,6 @@ void DaosWriter::InitDAOS()
     CALI_MARK_BEGIN("DaosWriter::array_oh_share");
     array_oh_share(&oh);
     CALI_MARK_END("DaosWriter::array_oh_share");
-
-
-
 
     if (m_Comm.Rank() == 0)
     {

@@ -791,6 +791,11 @@ void DaosReader::InitDAOS() {
 
   CALI_MARK_BEGIN("DaosReader::daos_pool_connect");
   if (m_Comm.Rank() == 0) {
+
+    // Read env variable DAOS_POOL and set pool_label
+    const char* pool_label = std::getenv("DAOS_POOL");
+    ASSERT(pool_label != NULL, "DAOS_POOL environment variable not set");
+    
     /** connect to the just created DAOS pool */
     rc = daos_pool_connect(pool_label, DSS_PSETID,
                            // DAOS_PC_EX ,
@@ -811,6 +816,10 @@ void DaosReader::InitDAOS() {
   CALI_MARK_BEGIN("DaosReader::daos_cont_open");
 
   if (m_Comm.Rank() == 0) {
+    // Read env variable DAOS_CONT and set cont_label
+    const char* cont_label = std::getenv("DAOS_CONT");
+    ASSERT(cont_label != NULL, "DAOS_CONT environment variable not set");
+
     /** open container */
     rc = daos_cont_open(poh, cont_label, DAOS_COO_RO, &coh, NULL, NULL);
     ASSERT(rc == 0, "container open failed with %d", rc);
