@@ -180,7 +180,7 @@ void DaosReader::InstallMetadataForTimestep(size_t Step) {
         else
         {
             CALI_MARK_BEGIN("BP5Reader::InstallMetaData");
-            //m_BP5Deserializer->InstallMetaData(ThisMD, ThisMDSize, WriterRank);
+            m_BP5Deserializer->InstallMetaData(ThisMD, ThisMDSize, WriterRank);
             CALI_MARK_END("BP5Reader::InstallMetaData");
         }
         MDPosition += ThisMDSize;
