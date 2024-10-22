@@ -1335,28 +1335,28 @@ void DaosWriter::InitDAOS()
     {
         CALI_MARK_BEGIN("DaosWriter::create-daos-array");
         /** Open a DAOS array object */
-	daos_size_t cell_size = 1;
-	daos_size_t chunk_size = 1048576;
-	oid.hi = 0;
-	oid.lo = 57;
-	daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
+        daos_size_t cell_size = 1;
+        daos_size_t chunk_size = 1048576;
+        oid.hi = 0;
+        oid.lo = 57;
+        daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
         ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
-	rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
+        rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
         ASSERT(rc == 0, "daos_array_create failed with %d", rc);
         CALI_MARK_END("DaosWriter::create-daos-array");
 
-	/** Create a DAOS KV object to store metadata sizes */
-	mdsize_oid.hi = 0;
-	mdsize_oid.lo = 23;
-	rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
-	ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
+        /** Create a DAOS KV object to store metadata sizes */
+        mdsize_oid.hi = 0;
+        mdsize_oid.lo = 23;
+        rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+        ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 
         // Open array object
         CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
         rc = daos_kv_open(coh, mdsize_oid, DAOS_OO_RW, &mdsize_oh, NULL);
         ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
         CALI_MARK_END("DaosWriter::daos_kv_open");
-    }
+        }
     CALI_MARK_BEGIN("DaosWriter::array_oh_share");
     array_oh_share(&oh);
     CALI_MARK_END("DaosWriter::array_oh_share");
