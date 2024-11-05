@@ -235,12 +235,12 @@ void DaosReader::ReadMetadata(size_t Step) {
 }
 
 void DaosReader::InstallMetadataForTimestep(size_t Step) {
-    //size_t pgstart = m_MetadataIndexTable[Step][0];
-    size_t pgstart = m_MetadataIndexTable[0][0];
+    size_t pgstart = m_MetadataIndexTable[Step][0];
+    //size_t pgstart = m_MetadataIndexTable[0][0];
     size_t Position = pgstart + sizeof(uint64_t); // skip total data size
     const uint64_t WriterCount =
-        m_WriterMap[m_WriterMapIndex[0]].WriterCount;
-        //m_WriterMap[m_WriterMapIndex[Step]].WriterCount;
+        //m_WriterMap[m_WriterMapIndex[0]].WriterCount;
+        m_WriterMap[m_WriterMapIndex[Step]].WriterCount;
     size_t MDPosition = Position + 2 * sizeof(uint64_t) * WriterCount;
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++)
     {
@@ -844,7 +844,8 @@ void DaosReader::InitDAOS() {
 
   /** share pool handle with peer tasks */
   CALI_MARK_BEGIN("DaosReader::daos_handle_share_pool");
-  daos_handle_share(&poh, DaosReader::HANDLE_POOL);
+  if (m_Comm.Size() > 1)
+    daos_handle_share(&poh, DaosReader::HANDLE_POOL);
   CALI_MARK_END("DaosReader::daos_handle_share_pool");
 
 
@@ -859,7 +860,8 @@ void DaosReader::InitDAOS() {
 
   /** share container handle with peer tasks */
   CALI_MARK_BEGIN("DaosReader::daos_handle_share_cont");
-  daos_handle_share(&coh, HANDLE_CO);
+  if (m_Comm.Size() > 1)
+    daos_handle_share(&coh, HANDLE_CO);
   CALI_MARK_END("DaosReader::daos_handle_share_cont");
 
   CALI_MARK_BEGIN("DaosReader::fscanf-oid-n-broadcast");
@@ -877,7 +879,9 @@ void DaosReader::InitDAOS() {
   }
 
   // Rank 0 will broadcast the DAOS KV OID
-  MPI_Bcast(&oid, sizeof(daos_obj_id_t), MPI_BYTE, 0, MPI_COMM_WORLD);
+  if (m_Comm.Size() > 1) {
+    MPI_Bcast(&oid, sizeof(daos_obj_id_t), MPI_BYTE, 0, MPI_COMM_WORLD);
+  }
   //MPI_Bcast(&oid.hi, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
   //MPI_Bcast(&oid.lo, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
   CALI_MARK_END("DaosReader::fscanf-oid-n-broadcast");

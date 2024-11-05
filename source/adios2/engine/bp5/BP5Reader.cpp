@@ -1045,7 +1045,7 @@ size_t BP5Reader::ParseMetadataIndex(format::BufferSTL &bufferSTL,
                 // absolute pos in file before read
                 ptrs.push_back(MetadataPos);
                 m_MetadataIndexTable[m_StepsCount] = ptrs;
-#ifdef DUMPDATALOCINFO
+                #ifdef DUMPDATALOCINFO
                 for (uint64_t i = 0; i < m_WriterCount; i++)
                 {
                     size_t DataPosPos = ptrs[3];
@@ -1063,7 +1063,7 @@ size_t BP5Reader::ParseMetadataIndex(format::BufferSTL &bufferSTL,
                         buffer, DataPosPos, m_Minifooter.IsLittleEndian);
                     std::cout << "loc:" << DataPos << std::endl;
                 }
-#endif
+                #endif
                 minfo_size += MetadataSize;
                 metadataSizeToRead += MetadataSize;
                 m_StepsCount++;
