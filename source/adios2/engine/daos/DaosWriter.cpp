@@ -168,35 +168,42 @@ DaosWriter::WriteMetadata(const std::vector<core::iovec> &MetaDataBlocks,
 {
     uint64_t MDataTotalSize = 0;
     uint64_t MetaDataSize = 0;
-    std::vector<uint64_t> SizeVector;
+    //std::vector<uint64_t> SizeVector;
     std::vector<uint64_t> AttrSizeVector;
+    /*
     SizeVector.reserve(MetaDataBlocks.size());
     for (auto &b : MetaDataBlocks)
     {
         MDataTotalSize += sizeof(uint64_t) + b.iov_len;
         SizeVector.push_back(b.iov_len);
-    }
+    }*/
     for (auto &b : AttributeBlocks)
     {
         MDataTotalSize += sizeof(uint64_t) + b.iov_len;
         AttrSizeVector.push_back(b.iov_len);
     }
     MetaDataSize = 0;
+
+    
     m_FileMetadataManager.WriteFiles((char *)&MDataTotalSize, sizeof(uint64_t));
     MetaDataSize += sizeof(uint64_t);
+    /*
     m_FileMetadataManager.WriteFiles((char *)SizeVector.data(),
                                      sizeof(uint64_t) * SizeVector.size());
-    MetaDataSize += sizeof(uint64_t) * AttrSizeVector.size();
+    
+    MetaDataSize += sizeof(uint64_t) * AttrSizeVector.size();*/
     m_FileMetadataManager.WriteFiles((char *)AttrSizeVector.data(),
                                      sizeof(uint64_t) * AttrSizeVector.size());
     MetaDataSize += sizeof(uint64_t) * AttrSizeVector.size();
+
+    /*
     for (auto &b : MetaDataBlocks)
     {
         if (!b.iov_base)
             continue;
         m_FileMetadataManager.WriteFiles((char *)b.iov_base, b.iov_len);
         MetaDataSize += b.iov_len;
-    }
+    }*/
 
     for (auto &b : AttributeBlocks)
     {
@@ -671,8 +678,6 @@ void DaosWriter::EndStep()
             WriteMetaMetadata(UniqueMetaMetaBlocks);
             m_LatestMetaDataPos = m_MetaDataPos;
             m_LatestMetaDataSize = WriteMetadata(Metadata, AttributeBlocks);
-            // m_LatestMetaDataPos = 0;
-            // m_LatestMetaDataSize = 0;
             if (!m_Parameters.AsyncWrite)
             {
                 WriteMetadataFileIndex(m_LatestMetaDataPos,
