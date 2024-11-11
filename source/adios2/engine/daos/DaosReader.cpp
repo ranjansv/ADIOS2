@@ -68,87 +68,87 @@ void DaosReader::ReadMetadata(size_t Step) {
   //m_Metadata.Reset(true, true);
 
 
-  //Reader rank 0 -readers all metadata
-  if(m_Comm.Rank() == 0) {
-      size_t total_mdsize = 0;
-      size_t buffer_size = 0;
-      size_t sizeof_list_writer_mdsize;
-      uint64_t list_writer_mdsize[WriterCount];
-      daos_range_t *list_rg = NULL;
+  // Reader rank 0 - reads all metadata
+  if (m_Comm.Rank() == 0) {
+    size_t total_mdsize = 0;
+    size_t buffer_size = 0;
+    size_t sizeof_list_writer_mdsize;
+    uint64_t list_writer_mdsize[WriterCount];
+    daos_range_t *list_rg = NULL;
 
-     //Get list of Metadata sizes for all writers
-     char key[1000];
+    // Get list of Metadata sizes for all writers
+    char key[1000];
 
-     list_rg = (daos_range_t *) malloc(WriterCount * sizeof(daos_range_t));
+    list_rg = (daos_range_t *)malloc(WriterCount * sizeof(daos_range_t));
 
-     sprintf(key, "step%d", Step);
-     sizeof_list_writer_mdsize = sizeof(uint64_t) * WriterCount;
+    sprintf(key, "step%d", Step);
+    sizeof_list_writer_mdsize = sizeof(uint64_t) * WriterCount;
 
-     CALI_MARK_BEGIN("DaosReader::daos_kv_get_list_of_mdsize");
-     rc = daos_kv_get(mdsize_oh, DAOS_TX_NONE, 0, key, &sizeof_list_writer_mdsize, 
-                     list_writer_mdsize, NULL);
-     ASSERT(rc == 0, "daos_kv_get() failed to read metadata with %d", rc);
-     CALI_MARK_END("DaosReader::daos_kv_get_list_of_mdsize");
+    CALI_MARK_BEGIN("DaosReader::daos_kv_get_list_of_mdsize");
+    rc = daos_kv_get(mdsize_oh, DAOS_TX_NONE, 0, key, &sizeof_list_writer_mdsize,
+             list_writer_mdsize, NULL);
+    ASSERT(rc == 0, "daos_kv_get() failed to read metadata with %d", rc);
+    CALI_MARK_END("DaosReader::daos_kv_get_list_of_mdsize");
 
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
-	total_mdsize += list_writer_mdsize[WriterRank];
+      total_mdsize += list_writer_mdsize[WriterRank];
     }
 
-#ifdef DEBUG_BADALLOC
+  #ifdef DEBUG_BADALLOC
     std::cout << "ReadMetadata() - Step: " << Step << ", WriterCount: " << WriterCount << ", total_mdsize: " << total_mdsize << std::endl;
-#endif
+  #endif
 
-    //Allocate memory for m_Metadata
+    // Allocate memory for m_Metadata
     buffer_size = sizeof(uint64_t) * (2 * WriterCount + 1) + total_mdsize;
     m_Metadata.Resize(buffer_size, "allocating metadata buffer, "
-                                   "in call to DaosReader Open");
+                     "in call to DaosReader Open");
 
-    uint64_t * ptr = (uint64_t*) m_Metadata.m_Buffer.data();
+    uint64_t *ptr = (uint64_t *)m_Metadata.m_Buffer.data();
 
-    //The Metadata buffer is contructed like in WriteMetadata()
+    // The Metadata buffer is constructed like in WriteMetadata()
     ptr[0] = total_mdsize;
-    int index = 1; 
-    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
-       ptr[index] = list_writer_mdsize[WriterRank]; 
-       list_rg[WriterRank].rg_len = list_writer_mdsize[WriterRank];
-       list_rg[WriterRank].rg_idx = m_step_offset + WriterRank * chunk_size_1mb;
-       index++;
+    int index = 1;
+    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
+      ptr[index] = list_writer_mdsize[WriterRank];
+      list_rg[WriterRank].rg_len = list_writer_mdsize[WriterRank];
+      list_rg[WriterRank].rg_idx = m_step_offset + WriterRank * chunk_size_1mb;
+      index++;
     }
-    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
-       ptr[index] = 0;
-       index++;
+    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
+      ptr[index] = 0;
+      index++;
     }
 
-    char * meta_buff = (char*) &ptr[index];
+    char *meta_buff = (char *)&ptr[index];
     index = 0;
 
-    //Now read in the actual metadata for reach writer
-    //Setup I/O Descriptor  
+    // Now read in the actual metadata for each writer
+    // Setup I/O Descriptor
     iod.arr_nr = WriterCount;
     iod.arr_rgs = list_rg;
 
     /** set memory location */
     sgl.sg_nr = 1;
-    d_iov_set(&iov, &meta_buff[index], total_mdsize); 
+    d_iov_set(&iov, &meta_buff[index], total_mdsize);
     sgl.sg_iovs = &iov;
 
-    //Write Metadata
+    // Write Metadata
     CALI_MARK_BEGIN("DaosReader::daos_array_read");
     rc = daos_array_read(oh, DAOS_TX_NONE, &iod, &sgl, NULL);
     ASSERT(rc == 0, "daos_array_read() failed to read metadata with %d", rc);
     CALI_MARK_END("DaosReader::daos_array_read");
 
-    m_step_offset += MAX_AGGREGATE_METADATA_SIZE;  
-#ifdef DEBUG_BADALLOC
+    m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
+  #ifdef DEBUG_BADALLOC
     size_t offset = 0;
-    for(int j = 0; j < WriterCount; j++) {
-    printf("ReadMetadata() Metadatablock, step = %lu, WriterRank = %d\n", Step, j);
-    offset += list_writer_mdsize[j];
-    for(int i = 0; i < 12; i++)
-            printf("%02x ", meta_buff[offset + i]);
-    printf("\n");
+    for (int j = 0; j < WriterCount; j++) {
+      printf("ReadMetadata() Metadatablock, step = %lu, WriterRank = %d\n", Step, j);
+      offset += list_writer_mdsize[j];
+      for (int i = 0; i < 12; i++)
+        printf("%02x ", meta_buff[offset + i]);
+      printf("\n");
     }
-#endif
+  #endif
     free(list_rg);
   }
 
