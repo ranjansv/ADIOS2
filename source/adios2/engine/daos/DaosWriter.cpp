@@ -172,35 +172,46 @@ DaosWriter::WriteMetadata(const std::vector<core::iovec> &MetaDataBlocks,
 {
     uint64_t MDataTotalSize = 0;
     uint64_t MetaDataSize = 0;
-    std::vector<uint64_t> SizeVector;
+    //std::vector<uint64_t> SizeVector;
     std::vector<uint64_t> AttrSizeVector;
+    /*
     SizeVector.reserve(MetaDataBlocks.size());
     for (auto &b : MetaDataBlocks)
     {
         MDataTotalSize += sizeof(uint64_t) + b.iov_len;
         SizeVector.push_back(b.iov_len);
-    }
+    }*/
     for (auto &b : AttributeBlocks)
     {
         MDataTotalSize += sizeof(uint64_t) + b.iov_len;
         AttrSizeVector.push_back(b.iov_len);
+        // std::cout << "AttrSizeVector = " << b.iov_len << std::endl;
     }
+
+    // std::cout << "MDataTotalSize = " << MDataTotalSize << std::endl;
+    
     MetaDataSize = 0;
+
+    
     m_FileMetadataManager.WriteFiles((char *)&MDataTotalSize, sizeof(uint64_t));
     MetaDataSize += sizeof(uint64_t);
+    /*
     m_FileMetadataManager.WriteFiles((char *)SizeVector.data(),
                                      sizeof(uint64_t) * SizeVector.size());
-    MetaDataSize += sizeof(uint64_t) * AttrSizeVector.size();
+    
+    MetaDataSize += sizeof(uint64_t) * AttrSizeVector.size();*/
     m_FileMetadataManager.WriteFiles((char *)AttrSizeVector.data(),
                                      sizeof(uint64_t) * AttrSizeVector.size());
     MetaDataSize += sizeof(uint64_t) * AttrSizeVector.size();
+
+    /*
     for (auto &b : MetaDataBlocks)
     {
         if (!b.iov_base)
             continue;
         m_FileMetadataManager.WriteFiles((char *)b.iov_base, b.iov_len);
         MetaDataSize += b.iov_len;
-    }
+    }*/
 
     for (auto &b : AttributeBlocks)
     {
@@ -208,6 +219,21 @@ DaosWriter::WriteMetadata(const std::vector<core::iovec> &MetaDataBlocks,
             continue;
         m_FileMetadataManager.WriteFiles((char *)b.iov_base, b.iov_len);
         MetaDataSize += b.iov_len;
+
+        #ifdef ATTRIBUTE_DEBUG
+        //Print the hex dump from offset b.iov_base to length b.iov_len
+            // Print the hex dump directly
+        unsigned char *data = (unsigned char *)b.iov_base;
+        size_t len = b.iov_len;
+
+        for (size_t i = 0; i < len; i++) {
+            if (i % 16 == 0) {
+                printf("\n%08zx  ", (size_t)(data + i));
+            }
+            printf("%02x ", data[i]);
+        }
+        printf("\n");
+        #endif
     }
 
     m_MetaDataPos += MetaDataSize;
