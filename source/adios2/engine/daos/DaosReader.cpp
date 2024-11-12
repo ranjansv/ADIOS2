@@ -98,15 +98,21 @@ void DaosReader::ReadMetadata(size_t Step) {
     std::cout << "ReadMetadata() - Step: " << Step << ", WriterCount: " << WriterCount << ", total_mdsize: " << total_mdsize << std::endl;
   #endif
 
+      // Reading total size of attribute includes vector of sizes of attributes and also the attribute buffers
+    size_t total_attr_size = 0;
+    size_t off_attr = m_MetadataIndexTable[Step][4];
+    m_MDFileManager.ReadFile((char*) &total_attr_size, sizeof(size_t),  off_attr);
+    off_attr = off_attr + sizeof(size_t);
+
     // Allocate memory for m_Metadata
-    buffer_size = sizeof(uint64_t) * (2 * WriterCount + 1) + total_mdsize;
+    buffer_size = sizeof(uint64_t) *  (WriterCount + 1) + total_mdsize + total_attr_size;
     m_Metadata.Resize(buffer_size, "allocating metadata buffer, "
                      "in call to DaosReader Open");
 
     uint64_t *ptr = (uint64_t *)m_Metadata.m_Buffer.data();
 
     // The Metadata buffer is constructed like in WriteMetadata()
-    ptr[0] = total_mdsize;
+    ptr[0] = buffer_size;
     int index = 1;
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
       ptr[index] = list_writer_mdsize[WriterRank];
@@ -114,10 +120,11 @@ void DaosReader::ReadMetadata(size_t Step) {
       list_rg[WriterRank].rg_idx = m_step_offset + WriterRank * chunk_size_1mb;
       index++;
     }
-    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
-      ptr[index] = 0;
-      index++;
-    }
+
+    m_MDFileManager.ReadFile((char*) &ptr[index], sizeof(uint64_t) *  WriterCount, off_attr);
+    off_attr = off_attr + sizeof(uint64_t) *  WriterCount;
+
+    index += WriterCount;
 
     char *meta_buff = (char *)&ptr[index];
     index = 0;
@@ -150,6 +157,13 @@ void DaosReader::ReadMetadata(size_t Step) {
     }
   #endif
     free(list_rg);
+
+    index += total_mdsize;
+
+    //Read in attributes
+    size_t att_readin_size = total_attr_size - (WriterCount * sizeof(uint64_t));
+    m_MDFileManager.ReadFile((char*) &meta_buff[index], att_readin_size, off_attr);
+
   }
 
   m_Comm.Barrier();
