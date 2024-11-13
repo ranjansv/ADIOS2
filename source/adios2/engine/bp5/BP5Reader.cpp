@@ -203,7 +203,9 @@ void BP5Reader::EndStep()
     }
     m_BetweenStepPairs = false;
     PERFSTUBS_SCOPED_TIMER("BP5Reader::EndStep");
+    CALI_MARK_BEGIN("BP5Reader::PerformGets");
     PerformGets();
+    CALI_MARK_END("BP5Reader::PerformGets");
 }
 
 std::pair<double, double>

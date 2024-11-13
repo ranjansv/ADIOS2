@@ -303,7 +303,9 @@ void DaosReader::EndStep() {
   }
   m_BetweenStepPairs = false;
   PERFSTUBS_SCOPED_TIMER("DaosReader::EndStep");
-  //RSV PerformGets();
+  CALI_MARK_BEGIN("DaosReader::PerformGets");
+  PerformGets();
+  CALI_MARK_END("DaosReader::PerformGets");
 }
 
 std::pair<double, double>
