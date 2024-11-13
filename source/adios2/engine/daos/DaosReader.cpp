@@ -203,16 +203,16 @@ void DaosReader::InstallMetadataForTimestep(size_t Step) {
         MDPosition += ThisMDSize;
     }
 
-    // for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++)
-    // {   
-    //     // attribute metadata for timestep
-    //     size_t ThisADSize = helper::ReadValue<uint64_t>(
-    //         m_Metadata.m_Buffer, Position, m_Minifooter.IsLittleEndian);
-    //     char *ThisAD = m_Metadata.m_Buffer.data() + MDPosition;
-    //     if (ThisADSize > 0)
-    //         m_BP5Deserializer->InstallAttributeData(ThisAD, ThisADSize);
-    //     MDPosition += ThisADSize;
-    // }
+    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++)
+    {   
+      // attribute metadata for timestep
+      size_t ThisADSize = helper::ReadValue<uint64_t>(
+        m_Metadata.m_Buffer, Position, m_Minifooter.IsLittleEndian);
+      char *ThisAD = m_Metadata.m_Buffer.data() + MDPosition;
+      if (ThisADSize > 0)
+        m_BP5Deserializer->InstallAttributeData(ThisAD, ThisADSize);
+      MDPosition += ThisADSize;
+    }
 }
 
 StepStatus DaosReader::BeginStep(StepMode mode, const float timeoutSeconds) {
@@ -821,7 +821,8 @@ void DaosReader::InitDAOS() {
 
   /** share pool handle with peer tasks */
   CALI_MARK_BEGIN("DaosReader::daos_handle_share_pool");
-  daos_handle_share(&poh, DaosReader::HANDLE_POOL);
+  if(m_Comm.Size() > 1)
+    daos_handle_share(&poh, DaosReader::HANDLE_POOL);
   CALI_MARK_END("DaosReader::daos_handle_share_pool");
 
 
@@ -836,7 +837,8 @@ void DaosReader::InitDAOS() {
 
   /** share container handle with peer tasks */
   CALI_MARK_BEGIN("DaosReader::daos_handle_share_cont");
-  daos_handle_share(&coh, HANDLE_CO);
+  if(m_Comm.Size() > 1)
+    daos_handle_share(&coh, HANDLE_CO);
   CALI_MARK_END("DaosReader::daos_handle_share_cont");
 
   CALI_MARK_BEGIN("DaosReader::fscanf-oid-n-broadcast");
@@ -866,9 +868,11 @@ void DaosReader::InitDAOS() {
   }
   CALI_MARK_END("DaosReader::fscanf-oid-n-broadcast");
 
+/*
   CALI_MARK_BEGIN("DaosReader::array_oh_share");
   array_oh_share(&oh);
   CALI_MARK_END("DaosReader::array_oh_share");
+*/
 
 }
 

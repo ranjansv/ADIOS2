@@ -1361,7 +1361,7 @@ void DaosWriter::InitDAOS()
 	daos_size_t cell_size = 1;
 	daos_size_t chunk_size = 1048576;
 	oid.hi = 0;
-	oid.lo = 57;
+	oid.lo = getpid();
 	daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
         ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 	rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
@@ -1370,7 +1370,7 @@ void DaosWriter::InitDAOS()
 
 	/** Create a DAOS KV object to store metadata sizes */
 	mdsize_oid.hi = 0;
-	mdsize_oid.lo = 23;
+	mdsize_oid.lo = getpid() + 1;
 	rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
 	ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 
