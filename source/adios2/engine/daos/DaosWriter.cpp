@@ -186,7 +186,7 @@ DaosWriter::WriteMetadata(const std::vector<core::iovec> &MetaDataBlocks,
     {
         MDataTotalSize += sizeof(uint64_t) + b.iov_len;
         AttrSizeVector.push_back(b.iov_len);
-        std::cout << "AttrSizeVector = " << b.iov_len << std::endl;
+        // std::cout << "AttrSizeVector = " << b.iov_len << std::endl;
     }
 
     std::cout << "MDataTotalSize = " << MDataTotalSize << std::endl;
