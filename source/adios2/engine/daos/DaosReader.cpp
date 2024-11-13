@@ -815,6 +815,7 @@ void DaosReader::InitDAOS() {
 
   /** share pool handle with peer tasks */
   CALI_MARK_BEGIN("DaosReader::daos_handle_share_pool");
+  if (m_Comm.Size() > 1)
   daos_handle_share(&poh, DaosReader::HANDLE_POOL);
   CALI_MARK_END("DaosReader::daos_handle_share_pool");
 
@@ -830,6 +831,7 @@ void DaosReader::InitDAOS() {
 
   /** share container handle with peer tasks */
   CALI_MARK_BEGIN("DaosReader::daos_handle_share_cont");
+  if (m_Comm.Size() > 1)
   daos_handle_share(&coh, HANDLE_CO);
   CALI_MARK_END("DaosReader::daos_handle_share_cont");
 
@@ -860,10 +862,12 @@ void DaosReader::InitDAOS() {
   }
   CALI_MARK_END("DaosReader::fscanf-oid-n-broadcast");
 
+/*
   CALI_MARK_BEGIN("DaosReader::array_oh_share");
+  if (m_Comm.Size() > 1)
   array_oh_share(&oh);
   CALI_MARK_END("DaosReader::array_oh_share");
-
+*/
 }
 
 void DaosReader::InstallMetaMetaData(format::BufferSTL buffer) {
