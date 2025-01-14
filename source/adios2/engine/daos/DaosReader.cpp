@@ -64,62 +64,68 @@ void DaosReader::ReadMetadata(size_t Step) {
   int rc;
 
   m_Metadata.Reset(true, false);
-  //m_Metadata.Reset(true, true);
+  // m_Metadata.Reset(true, true);
 
+  // Reader rank 0 - reads all metadata
+  if (m_Comm.Rank() == 0) {
+    size_t total_mdsize = 0;
+    size_t buffer_size = 0;
+    size_t sizeof_list_writer_mdsize;
+    uint64_t list_writer_mdsize[WriterCount];
 
-  //Reader rank 0 -readers all metadata
-  if(m_Comm.Rank() == 0) {
-      size_t total_mdsize = 0;
-      size_t buffer_size = 0;
-      size_t sizeof_list_writer_mdsize;
-      uint64_t list_writer_mdsize[WriterCount];
+    // Get list of Metadata sizes for all writers
+    char key[1000];
 
-     //Get list of Metadata sizes for all writers
-     char key[1000];
+    sprintf(key, "step%d", Step);
+    sizeof_list_writer_mdsize = sizeof(uint64_t) * WriterCount;
 
-     sprintf(key, "step%d", Step);
-     sizeof_list_writer_mdsize = sizeof(uint64_t) * WriterCount;
-
-     CALI_MARK_BEGIN("DaosReader::daos_kv_get_list_of_mdsize");
-     rc = daos_kv_get(mdsize_oh, DAOS_TX_NONE, 0, key, &sizeof_list_writer_mdsize, 
+    CALI_MARK_BEGIN("DaosReader::daos_kv_get_list_of_mdsize");
+    rc = daos_kv_get(mdsize_oh, DAOS_TX_NONE, 0, key, &sizeof_list_writer_mdsize,
                      list_writer_mdsize, NULL);
-     ASSERT(rc == 0, "daos_kv_get() failed to read metadata with %d", rc);
-     CALI_MARK_END("DaosReader::daos_kv_get_list_of_mdsize");
+    ASSERT(rc == 0, "daos_kv_get() failed to read metadata with %d", rc);
+    CALI_MARK_END("DaosReader::daos_kv_get_list_of_mdsize");
 
     for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
-	total_mdsize += list_writer_mdsize[WriterRank];
+      total_mdsize += list_writer_mdsize[WriterRank];
     }
 
-#ifdef DEBUG_BADALLOC
+    #ifdef DEBUG_BADALLOC
     std::cout << "Step: " << Step;
     std::cout << ", WriterCount: " << WriterCount;
     std::cout << ", total_mdsize: " << total_mdsize << std::endl;
-#endif
+    #endif
 
-    //Allocate memory for m_Metadata
-    buffer_size = sizeof(uint64_t) * (2 * WriterCount + 1) + total_mdsize;
+    // Reading total size of attribute includes vector of sizes of attributes and also the attribute buffers
+    size_t total_attr_size = 0;
+    size_t off_attr = m_MetadataIndexTable[Step][4];
+    m_MDFileManager.ReadFile((char*) &total_attr_size, sizeof(size_t),  off_attr);
+    off_attr = off_attr + sizeof(size_t);
+
+    // Allocate memory for m_Metadata
+    buffer_size = sizeof(uint64_t) *  (WriterCount + 1) + total_mdsize + total_attr_size;
     m_Metadata.Resize(buffer_size, "allocating metadata buffer, "
                                    "in call to DaosReader Open");
 
-    uint64_t * ptr = (uint64_t*) m_Metadata.m_Buffer.data();
+    uint64_t *ptr = (uint64_t *)m_Metadata.m_Buffer.data();
 
-    //The Metadata buffer is contructed like in WriteMetadata()
-    ptr[0] = total_mdsize;
-    int index = 1; 
-    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
-       ptr[index] = list_writer_mdsize[WriterRank]; 
-       index++;
-    }
-    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) { 
-       ptr[index] = 0;
-       index++;
+    // The Metadata buffer is constructed like in WriteMetadata()
+    ptr[0] = buffer_size;
+    int index = 1;
+    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++) {
+      ptr[index] = list_writer_mdsize[WriterRank];
+      index++;
     }
 
-    char * meta_buff = (char*) &ptr[index];
+    m_MDFileManager.ReadFile((char*) &ptr[index], sizeof(uint64_t) *  WriterCount, off_attr);
+    off_attr = off_attr + sizeof(uint64_t) *  WriterCount;
+
+    index += WriterCount;
+
+    char *meta_buff = (char *)&ptr[index];
     index = 0;
 
-    //Now read in the actual metadata for reach writer
-    //Setup I/O Descriptor  
+    // Now read in the actual metadata for each writer
+    // Setup I/O Descriptor
     iod.arr_nr = 1;
     rg.rg_len = total_mdsize;
     rg.rg_idx = m_step_offset;
@@ -127,35 +133,40 @@ void DaosReader::ReadMetadata(size_t Step) {
 
     /** set memory location */
     sgl.sg_nr = 1;
-    d_iov_set(&iov, &meta_buff[index], total_mdsize); 
+    d_iov_set(&iov, &meta_buff[index], total_mdsize);
     sgl.sg_iovs = &iov;
 
-    //Write Metadata
+    // Write Metadata
     CALI_MARK_BEGIN("DaosReader::daos_array_read");
     rc = daos_array_read(oh, DAOS_TX_NONE, &iod, &sgl, NULL);
     ASSERT(rc == 0, "daos_array_read() failed to read metadata with %d", rc);
     CALI_MARK_END("DaosReader::daos_array_read");
 
-    m_step_offset += MAX_AGGREGATE_METADATA_SIZE;  
-#ifdef DEBUG_BADALLOC
-    size_t offset = 0;
-    for(int j = 0; j < WriterCount; j++) {
-    printf("DaosReader:ReadMetadata() Metadatablock, step = %lu, WriterRank = %d\n", Step, j);
-    offset += list_writer_mdsize[j];
-    for(int i = 0; i < 12; i++)
+    m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
+    #ifdef DEBUG_BADALLOC
+        size_t offset = 0;
+        for (int j = 0; j < WriterCount; j++) {
+          printf("DaosReader:ReadMetadata() Metadatablock, step = %lu, WriterRank = %d\n", Step, j);
+          offset += list_writer_mdsize[j];
+          for (int i = 0; i < 12; i++)
             printf("%02x ", meta_buff[offset + i]);
-    printf("\n");
-    }
-#endif
+          printf("\n");
+        }
+    #endif
+
+    index += total_mdsize;
+
+    //Read in attributes
+    size_t att_readin_size = total_attr_size - (WriterCount * sizeof(uint64_t));
+    m_MDFileManager.ReadFile((char*) &meta_buff[index], att_readin_size, off_attr);
   }
 
   m_Comm.Barrier();
 
   // broadcast buffer to all ranks from zero
-   CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
-   m_Comm.BroadcastVector(m_Metadata.m_Buffer);
-   CALI_MARK_END("DaosReader::broadcast_metadata");
-
+  CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
+  m_Comm.BroadcastVector(m_Metadata.m_Buffer);
+  CALI_MARK_END("DaosReader::broadcast_metadata");
 }
 
 void DaosReader::InstallMetadataForTimestep(size_t Step) {
@@ -186,16 +197,16 @@ void DaosReader::InstallMetadataForTimestep(size_t Step) {
         MDPosition += ThisMDSize;
     }
 
-    // for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++)
-    // {   
-    //     // attribute metadata for timestep
-    //     size_t ThisADSize = helper::ReadValue<uint64_t>(
-    //         m_Metadata.m_Buffer, Position, m_Minifooter.IsLittleEndian);
-    //     char *ThisAD = m_Metadata.m_Buffer.data() + MDPosition;
-    //     if (ThisADSize > 0)
-    //         m_BP5Deserializer->InstallAttributeData(ThisAD, ThisADSize);
-    //     MDPosition += ThisADSize;
-    // }
+    for (size_t WriterRank = 0; WriterRank < WriterCount; WriterRank++)
+    {   
+      // attribute metadata for timestep
+      size_t ThisADSize = helper::ReadValue<uint64_t>(
+        m_Metadata.m_Buffer, Position, m_Minifooter.IsLittleEndian);
+      char *ThisAD = m_Metadata.m_Buffer.data() + MDPosition;
+      if (ThisADSize > 0)
+        m_BP5Deserializer->InstallAttributeData(ThisAD, ThisADSize);
+      MDPosition += ThisADSize;
+    }
 }
 
 StepStatus DaosReader::BeginStep(StepMode mode, const float timeoutSeconds) {
@@ -303,7 +314,9 @@ void DaosReader::EndStep() {
   }
   m_BetweenStepPairs = false;
   PERFSTUBS_SCOPED_TIMER("DaosReader::EndStep");
+  CALI_MARK_BEGIN("DaosReader::PerformGets");
   PerformGets();
+  CALI_MARK_END("DaosReader::PerformGets");
 }
 
 std::pair<double, double>
@@ -804,6 +817,7 @@ void DaosReader::InitDAOS() {
 
   /** share pool handle with peer tasks */
   CALI_MARK_BEGIN("DaosReader::daos_handle_share_pool");
+  if (m_Comm.Size() > 1)
   daos_handle_share(&poh, DaosReader::HANDLE_POOL);
   CALI_MARK_END("DaosReader::daos_handle_share_pool");
 
@@ -819,6 +833,7 @@ void DaosReader::InitDAOS() {
 
   /** share container handle with peer tasks */
   CALI_MARK_BEGIN("DaosReader::daos_handle_share_cont");
+  if (m_Comm.Size() > 1)
   daos_handle_share(&coh, HANDLE_CO);
   CALI_MARK_END("DaosReader::daos_handle_share_cont");
 
@@ -849,10 +864,12 @@ void DaosReader::InitDAOS() {
   }
   CALI_MARK_END("DaosReader::fscanf-oid-n-broadcast");
 
+/*
   CALI_MARK_BEGIN("DaosReader::array_oh_share");
+  if (m_Comm.Size() > 1)
   array_oh_share(&oh);
   CALI_MARK_END("DaosReader::array_oh_share");
-
+*/
 }
 
 void DaosReader::InstallMetaMetaData(format::BufferSTL buffer) {

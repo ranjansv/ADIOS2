@@ -172,35 +172,46 @@ DaosWriter::WriteMetadata(const std::vector<core::iovec> &MetaDataBlocks,
 {
     uint64_t MDataTotalSize = 0;
     uint64_t MetaDataSize = 0;
-    std::vector<uint64_t> SizeVector;
+    //std::vector<uint64_t> SizeVector;
     std::vector<uint64_t> AttrSizeVector;
+    /*
     SizeVector.reserve(MetaDataBlocks.size());
     for (auto &b : MetaDataBlocks)
     {
         MDataTotalSize += sizeof(uint64_t) + b.iov_len;
         SizeVector.push_back(b.iov_len);
-    }
+    }*/
     for (auto &b : AttributeBlocks)
     {
         MDataTotalSize += sizeof(uint64_t) + b.iov_len;
         AttrSizeVector.push_back(b.iov_len);
+        // std::cout << "AttrSizeVector = " << b.iov_len << std::endl;
     }
+
+    // std::cout << "MDataTotalSize = " << MDataTotalSize << std::endl;
+    
     MetaDataSize = 0;
+
+    
     m_FileMetadataManager.WriteFiles((char *)&MDataTotalSize, sizeof(uint64_t));
     MetaDataSize += sizeof(uint64_t);
+    /*
     m_FileMetadataManager.WriteFiles((char *)SizeVector.data(),
                                      sizeof(uint64_t) * SizeVector.size());
-    MetaDataSize += sizeof(uint64_t) * AttrSizeVector.size();
+    
+    MetaDataSize += sizeof(uint64_t) * AttrSizeVector.size();*/
     m_FileMetadataManager.WriteFiles((char *)AttrSizeVector.data(),
                                      sizeof(uint64_t) * AttrSizeVector.size());
     MetaDataSize += sizeof(uint64_t) * AttrSizeVector.size();
+
+    /*
     for (auto &b : MetaDataBlocks)
     {
         if (!b.iov_base)
             continue;
         m_FileMetadataManager.WriteFiles((char *)b.iov_base, b.iov_len);
         MetaDataSize += b.iov_len;
-    }
+    }*/
 
     for (auto &b : AttributeBlocks)
     {
@@ -208,6 +219,21 @@ DaosWriter::WriteMetadata(const std::vector<core::iovec> &MetaDataBlocks,
             continue;
         m_FileMetadataManager.WriteFiles((char *)b.iov_base, b.iov_len);
         MetaDataSize += b.iov_len;
+
+        #ifdef ATTRIBUTE_DEBUG
+        //Print the hex dump from offset b.iov_base to length b.iov_len
+            // Print the hex dump directly
+        unsigned char *data = (unsigned char *)b.iov_base;
+        size_t len = b.iov_len;
+
+        for (size_t i = 0; i < len; i++) {
+            if (i % 16 == 0) {
+                printf("\n%08zx  ", (size_t)(data + i));
+            }
+            printf("%02x ", data[i]);
+        }
+        printf("\n");
+        #endif
     }
 
     m_MetaDataPos += MetaDataSize;
@@ -1286,7 +1312,6 @@ void DaosWriter::InitTransports()
     }
 }
 
-
 void DaosWriter::InitDAOS()
 {
     // Rank 0 - Connect to DAOS pool, and open container
@@ -1336,28 +1361,28 @@ void DaosWriter::InitDAOS()
     {
         CALI_MARK_BEGIN("DaosWriter::create-daos-array");
         /** Open a DAOS array object */
-        daos_size_t cell_size = 1;
-        daos_size_t chunk_size = 1048576;
-        oid.hi = 0;
-        oid.lo = getpid();
-        daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
+	daos_size_t cell_size = 1;
+	daos_size_t chunk_size = 1048576;
+	oid.hi = 0;
+	oid.lo = getpid();
+	daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
         ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
-        rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
+	rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
         ASSERT(rc == 0, "daos_array_create failed with %d", rc);
         CALI_MARK_END("DaosWriter::create-daos-array");
 
-        /** Create a DAOS KV object to store metadata sizes */
-        mdsize_oid.hi = 0;
-        mdsize_oid.lo = getpid() + 1;
-        rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
-        ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
+	/** Create a DAOS KV object to store metadata sizes */
+	mdsize_oid.hi = 0;
+	mdsize_oid.lo = getpid() + 1;
+	rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+	ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 
         // Open array object
         CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
         rc = daos_kv_open(coh, mdsize_oid, DAOS_OO_RW, &mdsize_oh, NULL);
         ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
         CALI_MARK_END("DaosWriter::daos_kv_open");
-        }
+    }
     CALI_MARK_BEGIN("DaosWriter::array_oh_share");
     array_oh_share(&oh);
     CALI_MARK_END("DaosWriter::array_oh_share");
@@ -1367,7 +1392,7 @@ void DaosWriter::InitDAOS()
 
     if (m_Comm.Rank() == 0)
     {
-	    FILE *fp = fopen("./share/oid.txt", "w");
+	FILE *fp = fopen("./share/oid.txt", "w");
         if (fp == NULL)
         {
             perror("fopen");
