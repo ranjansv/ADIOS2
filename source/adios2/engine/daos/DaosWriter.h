@@ -45,6 +45,7 @@
     } while (0)
 
 #define MAX_AGGREGATE_METADATA_SIZE (5ULL * 1024 * 1024 * 1024)
+#define chunk_size_1mb 1048576
 
 
 namespace adios2
@@ -116,6 +117,17 @@ private:
     daos_range_t rg;
     d_sg_list_t sgl;
     d_iov_t iov;
+
+    enum class DaosInterface {
+        DAOS_ARRAY,
+        DAOS_ARRAY_1MB_ALIGNED,
+        DAOS_KV,
+        UNKNOWN
+    };
+
+    void SetDaosInterface();
+
+    DaosInterface daosInterface;
 
     size_t m_step_offset = 0;
 

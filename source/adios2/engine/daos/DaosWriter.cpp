@@ -28,6 +28,7 @@
 #undef DEBUG_BADALLOC
 
 
+
 namespace adios2
 {
 namespace core
@@ -721,13 +722,24 @@ void DaosWriter::EndStep()
     uint64_t list_metadata_size[m_Comm.Size()];
     MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
 
-
     size_t offset = 0;
-    for(int i = 0; i < m_Comm.Size(); i++) {
-        if (i < m_Comm.Rank()) {
-	    offset += list_metadata_size[i];
-	}
+    switch (daosInterface) {
+        case DaosInterface::DAOS_ARRAY:
+            // Use DAOS-ARRAY interface
+            for (int i = 0; i < m_Comm.Size(); i++) {
+                if (i < m_Comm.Rank()) 
+                    offset += list_metadata_size[i];
+            }
+            break;
+        case DaosInterface::DAOS_ARRAY_1MB_ALIGNED:
+            // Use DAOS-ARRAY-1MB-ALIGN interface
+            offset = m_Comm.Rank() * chunk_size_1mb;
+            break;
+        default:
+            // Handle unknown or unsupported interface
+            break;
     }
+
 /*
     if (m_Comm.Rank() == 0) {
 	    std::cout << "rank 0, metadata size: " << list_metadata_size[0] << std::endl;
@@ -762,15 +774,16 @@ void DaosWriter::EndStep()
     m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
 
     //Writer Rank 0 -Store the list of metadata size in a KV entry
-    if(m_Comm.Rank() == 0) {
+    if (m_Comm.Rank() == 0)
+    {
         char key[1000];
-	sprintf(key, "step%d", m_WriterStep);
-	CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
-	int rc = daos_kv_put(mdsize_oh, DAOS_TX_NONE, 0, key, 
-	       	 sizeof(uint64_t) * m_Comm.Size(), 
-	       	 list_metadata_size, NULL);
-	ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
-	CALI_MARK_END("DaosWriter::daos_kv_put");
+        sprintf(key, "step%d", m_WriterStep);
+        CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
+        int rc = daos_kv_put(mdsize_oh, DAOS_TX_NONE, 0, key,
+                             sizeof(uint64_t) * m_Comm.Size(),
+                             list_metadata_size, NULL);
+        ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
+        CALI_MARK_END("DaosWriter::daos_kv_put");
     }
 
     CALI_MARK_END("DaosWriter::metadata-stabilization");
@@ -1311,6 +1324,27 @@ void DaosWriter::InitTransports()
         }
     }
 }
+
+// Function to set DAOS interface from the environment variable
+void DaosWriter::SetDaosInterface() {
+    const char* env = std::getenv("DAOS_INTERFACE");
+    if (!env) {
+        daosInterface = DaosInterface::UNKNOWN;
+        return;
+    }
+
+    std::string interfaceStr(env);
+    if (interfaceStr == "daos-array") {
+        daosInterface = DaosInterface::DAOS_ARRAY;
+    } else if (interfaceStr == "daos-array-1mb-aligned") {
+        daosInterface = DaosInterface::DAOS_ARRAY_1MB_ALIGNED;
+    } else if (interfaceStr == "daos-kv") {
+        daosInterface = DaosInterface::DAOS_KV;
+    } else {
+        daosInterface = DaosInterface::UNKNOWN;
+    }
+}
+
 
 void DaosWriter::InitDAOS()
 {
