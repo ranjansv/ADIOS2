@@ -820,6 +820,7 @@ void DaosReader::SetDaosInterface() {
   }
 
   std::string interfaceStr(env);
+  std::transform(interfaceStr.begin(), interfaceStr.end(), interfaceStr.begin(), ::tolower);
   if (interfaceStr == "daos-array") {
       daosInterface = DaosInterface::DAOS_ARRAY;
   } else if (interfaceStr == "daos-array-1mb-aligned") {
@@ -829,6 +830,22 @@ void DaosReader::SetDaosInterface() {
   } else {
       daosInterface = DaosInterface::UNKNOWN;
   }
+  
+}
+
+// Set m_PoolName and m_ContName from the environment variables DAOS_POOL and DAOS_CONT
+void DaosReader::SetPoolAndContName() {
+  const char* pool = std::getenv("DAOS_POOL");
+  const char* cont = std::getenv("DAOS_CONT");
+  if (!pool || !cont) {
+      std::cout << "DAOS_POOL or DAOS_CONT not set" << std::endl;
+      exit(1);
+  }
+
+  strncpy(m_pool_label, pool, sizeof(m_pool_label) - 1);
+  m_pool_label[sizeof(m_pool_label) - 1] = '\0';
+  strncpy(m_cont_label, cont, sizeof(m_cont_label) - 1);
+  m_cont_label[sizeof(m_cont_label) - 1] = '\0';
 }
 
 void DaosReader::InitDAOS() {
@@ -842,15 +859,16 @@ void DaosReader::InitDAOS() {
   rc = gethostname(node, sizeof(node));
   ASSERT(rc == 0, "buffer for hostname too small");
 
-  // Rank 0, set DAOS interface type
-  if (m_Comm.Rank() == 0) {
-    SetDaosInterface();
-  }
+
+  SetDaosInterface();
+
+  SetPoolAndContName();
+  
 
   CALI_MARK_BEGIN("DaosReader::daos_pool_connect");
   if (m_Comm.Rank() == 0) {
     /** connect to the just created DAOS pool */
-    rc = daos_pool_connect(pool_label, DSS_PSETID,
+    rc = daos_pool_connect(m_pool_label, DSS_PSETID,
                            // DAOS_PC_EX ,
                            DAOS_PC_RO /* read only access */,
                            &poh /* returned pool handle */,
@@ -871,7 +889,7 @@ void DaosReader::InitDAOS() {
 
   if (m_Comm.Rank() == 0) {
     /** open container */
-    rc = daos_cont_open(poh, cont_label, DAOS_COO_RO, &coh, NULL, NULL);
+    rc = daos_cont_open(poh, m_cont_label, DAOS_COO_RO, &coh, NULL, NULL);
     ASSERT(rc == 0, "container open failed with %d", rc);
   }
   CALI_MARK_END("DaosReader::daos_cont_open");

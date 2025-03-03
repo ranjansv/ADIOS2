@@ -122,9 +122,7 @@ private:
 
     /* DAOS declarations */
 
-    uuid_t pool_uuid, cont_uuid;
-    char *pool_label = "CSC250STDM11_CNDA";
-    char *cont_label = "adios-daos-engine-cont";
+    char m_pool_label[100], m_cont_label[100];
 
     /* Declare variables for pool and container handles */
     daos_handle_t poh, coh;
@@ -151,6 +149,7 @@ private:
     };
 
     void SetDaosInterface();
+    void SetPoolAndContName();
 
     DaosInterface daosInterface;
 
