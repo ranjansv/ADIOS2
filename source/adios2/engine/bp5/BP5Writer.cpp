@@ -545,15 +545,22 @@ void BP5Writer::EndStep()
     m_Profiler.Stop("close_ts");
 
     m_Profiler.Start("AWD");
-    CALI_MARK_BEGIN("BP5Writer::WriteData");
+    
     // TSInfo destructor would delete the DataBuffer so we need to save it
     // for async IO and let the writer free it up when not needed anymore
+    adios2::format::BufferV *databuf = TSInfo.DataBuffer;
+    TSInfo.DataBuffer = nullptr;
     m_AsyncWriteLock.lock();
     m_flagRush = false;
     m_AsyncWriteLock.unlock();
-    //WriteData will free TSInfo.DataBuffer
-    WriteData(TSInfo.DataBuffer);
-    CALI_MARK_END("BP5Writer::WriteData");
+    //If m_DataFlag is ON, write else just free databuf
+    if (m_DataFlag == DataFlag::ON) {
+        CALI_MARK_BEGIN("BP5Writer::WriteData");
+        WriteData(databuf);
+        CALI_MARK_END("BP5Writer::WriteData");
+    }
+    else
+        delete databuf;
     m_Profiler.Stop("AWD");
 
     /*
@@ -704,6 +711,23 @@ void BP5Writer::EndStep()
      std::cout << "END STEP ended at: " << ts2.count() << std::endl;*/
 }
 
+void BP5Writer::SetDataFlag()
+{
+    //Read environment variable DATA_STATE and set m_datastate accordingly
+    const char *datastate = std::getenv("DATA_FLAG");
+    if (!datastate)
+    {
+        //By default, set m_DataFlag to ON
+        return;
+    }
+
+    // Set m_DataFlag based on the environment variable value
+    m_DataFlag = (std::string(datastate) == "OFF") ? DataFlag::OFF : DataFlag::ON;
+
+    //print the value of m_DataFlag
+    std::cout << "m_DataFlag: " << static_cast<int>(m_DataFlag) << std::endl;
+}
+
 // PRIVATE
 void BP5Writer::Init()
 {
@@ -713,6 +737,7 @@ void BP5Writer::Init()
     InitAggregator();
     InitTransports();
     InitBPBuffer();
+    SetDataFlag();
 }
 
 void BP5Writer::InitParameters()

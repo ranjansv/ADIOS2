@@ -334,9 +334,14 @@ void DaosReader::EndStep() {
   }
   m_BetweenStepPairs = false;
   PERFSTUBS_SCOPED_TIMER("DaosReader::EndStep");
-  CALI_MARK_BEGIN("DaosReader::PerformGets");
-  PerformGets();
-  CALI_MARK_END("DaosReader::PerformGets");
+
+  if (m_DataFlag == DataFlag::ON) {
+    CALI_MARK_BEGIN("DaosReader::PerformGets");
+    PerformGets();
+    CALI_MARK_END("DaosReader::PerformGets");
+  } else {
+    //Skip reading data
+  }
 }
 
 std::pair<double, double>
@@ -811,6 +816,23 @@ void DaosReader::array_oh_share(daos_handle_t *oh) {
   MPI_Barrier(MPI_COMM_WORLD);
 }
 
+void DaosReader::SetDataFlag()
+{
+    //Read environment variable DATA_STATE and set m_datastate accordingly
+    const char *datastate = std::getenv("DATA_FLAG");
+    if (!datastate)
+    {
+        //By default, set m_DataFlag to ON
+        return;
+    }
+
+    // Set m_DataFlag based on the environment variable value
+    m_DataFlag = (std::string(datastate) == "OFF") ? DataFlag::OFF : DataFlag::ON;
+
+    //print the value of m_DataFlag
+    std::cout << "m_DataFlag: " << static_cast<int>(m_DataFlag) << std::endl;
+}
+
 // Function to set DAOS interface from the environment variable
 void DaosReader::SetDaosInterface() {
   const char* env = std::getenv("DAOS_INTERFACE");
@@ -861,9 +883,8 @@ void DaosReader::InitDAOS() {
 
 
   SetDaosInterface();
-
   SetPoolAndContName();
-  
+  SetDataFlag();
 
   CALI_MARK_BEGIN("DaosReader::daos_pool_connect");
   if (m_Comm.Rank() == 0) {

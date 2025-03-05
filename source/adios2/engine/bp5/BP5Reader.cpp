@@ -203,9 +203,13 @@ void BP5Reader::EndStep()
     }
     m_BetweenStepPairs = false;
     PERFSTUBS_SCOPED_TIMER("BP5Reader::EndStep");
-    CALI_MARK_BEGIN("BP5Reader::PerformGets");
-    PerformGets();
-    CALI_MARK_END("BP5Reader::PerformGets");
+    if (m_DataFlag == DataFlag::ON) {
+        CALI_MARK_BEGIN("BP5Reader::PerformGets");
+        PerformGets();
+        CALI_MARK_END("BP5Reader::PerformGets");
+      } else {
+        //Skip reading data
+      }
 }
 
 std::pair<double, double>
@@ -438,6 +442,23 @@ void BP5Reader::PerformGets()
               << ", nRequests = " << nRequest << std::endl;*/
 }
 
+void BP5Reader::SetDataFlag()
+{
+    //Read environment variable DATA_STATE and set m_datastate accordingly
+    const char *datastate = std::getenv("DATA_FLAG");
+    if (!datastate)
+    {
+        //By default, set m_DataFlag to ON
+        return;
+    }
+
+    // Set m_DataFlag based on the environment variable value
+    m_DataFlag = (std::string(datastate) == "OFF") ? DataFlag::OFF : DataFlag::ON;
+
+    //print the value of m_DataFlag
+    std::cout << "m_DataFlag: " << static_cast<int>(m_DataFlag) << std::endl;
+}
+
 // PRIVATE
 void BP5Reader::Init()
 {
@@ -455,6 +476,7 @@ void BP5Reader::Init()
     m_ReaderIsRowMajor = (m_IO.m_ArrayOrder == ArrayOrdering::RowMajor);
     InitParameters();
     InitTransports();
+    SetDataFlag();
     if (!m_Parameters.SelectSteps.empty())
     {
         m_SelectedSteps.ParseSelection(m_Parameters.SelectSteps);

@@ -576,7 +576,7 @@ void DaosWriter::EndStep()
     m_Profiler.Stop("close_ts");
 
     m_Profiler.Start("AWD");
-    CALI_MARK_BEGIN("DaosWriter::WriteData");
+    
     // TSInfo destructor would delete the DataBuffer so we need to save it
     // for async IO and let the writer free it up when not needed anymore
     adios2::format::BufferV *databuf = TSInfo.DataBuffer;
@@ -584,8 +584,15 @@ void DaosWriter::EndStep()
     m_AsyncWriteLock.lock();
     m_flagRush = false;
     m_AsyncWriteLock.unlock();
-    WriteData(databuf);
-    CALI_MARK_END("DaosWriter::WriteData");
+    //If m_DataFlag is ON, write else just free databuf
+    if (m_DataFlag == DataFlag::ON) {
+        CALI_MARK_BEGIN("DaosWriter::WriteData");
+        WriteData(databuf);
+        CALI_MARK_END("DaosWriter::WriteData");
+    }
+    else
+        delete databuf;
+    
     m_Profiler.Stop("AWD");
 
     /*
@@ -1325,6 +1332,23 @@ void DaosWriter::InitTransports()
     }
 }
 
+void DaosWriter::SetDataFlag()
+{
+    //Read environment variable DATA_STATE and set m_datastate accordingly
+    const char *datastate = std::getenv("DATA_FLAG");
+    if (!datastate)
+    {
+        //By default, set m_DataFlag to ON
+        return;
+    }
+
+    // Set m_DataFlag based on the environment variable value
+    m_DataFlag = (std::string(datastate) == "OFF") ? DataFlag::OFF : DataFlag::ON;
+
+    //print the value of m_DataFlag
+    std::cout << "m_DataFlag: " << static_cast<int>(m_DataFlag) << std::endl;
+}
+
 // Function to set DAOS interface from the environment variable
 void DaosWriter::SetDaosInterface() {
     const char* env = std::getenv("DAOS_INTERFACE");
@@ -1374,8 +1398,8 @@ void DaosWriter::InitDAOS()
     ASSERT(rc == 0, "buffer for hostname too small");
 
     SetDaosInterface();
-
     SetPoolAndContName();
+    SetDataFlag();
     
     CALI_MARK_BEGIN("DaosWriter::daos_pool_connect");
     if (m_Comm.Rank() == 0)

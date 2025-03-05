@@ -147,11 +147,18 @@ private:
         DAOS_KV,
         UNKNOWN
     };
+    DaosInterface daosInterface;
 
     void SetDaosInterface();
     void SetPoolAndContName();
 
-    DaosInterface daosInterface;
+    enum class DataFlag {
+        ON,
+        OFF
+    };
+    
+    void SetDataFlag();
+    DataFlag m_DataFlag = DataFlag::ON;
 
     size_t m_step_offset = 0;
 

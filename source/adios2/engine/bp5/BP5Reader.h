@@ -101,6 +101,14 @@ private:
     transportman::TransportMan m_ActiveFlagFileManager;
     bool m_WriterIsActive = true;
 
+    enum class DataFlag {
+        ON,
+        OFF
+    };
+    
+    void SetDataFlag();
+    DataFlag m_DataFlag = DataFlag::ON;
+
     /** used for per-step reads, TODO: to be moved to BP5Deserializer */
     size_t m_CurrentStep = 0;
     size_t m_StepsCount = 0;

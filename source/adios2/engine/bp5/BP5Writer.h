@@ -354,6 +354,14 @@ private:
     void AsyncWriteDataCleanup();
     void AsyncWriteDataCleanup_EveryoneWrites();
     void AsyncWriteDataCleanup_TwoLevelShm();
+
+    enum class DataFlag {
+        ON,
+        OFF
+    };
+    
+    void SetDataFlag();
+    DataFlag m_DataFlag = DataFlag::ON;
 };
 
 } // end namespace engine
