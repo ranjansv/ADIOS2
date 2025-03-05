@@ -580,7 +580,7 @@ void DaosWriter::EndStep()
     // TSInfo destructor would delete the DataBuffer so we need to save it
     // for async IO and let the writer free it up when not needed anymore
     adios2::format::BufferV *databuf = TSInfo.DataBuffer;
-    TSInfo.DataBuffer = NULL;
+    TSInfo.DataBuffer = nullptr;
     m_AsyncWriteLock.lock();
     m_flagRush = false;
     m_AsyncWriteLock.unlock();
