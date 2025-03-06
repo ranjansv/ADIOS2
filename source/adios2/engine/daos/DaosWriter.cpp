@@ -553,43 +553,37 @@ void DaosWriter::MarshalAttributes()
     }
 }
 
-void DaosWriter::WriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo)
+void DaosWriter::DaosArrayWriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo) 
 {
         /* Use MPI_Allgather to gather list_metadata_size from all processes */
         uint64_t list_metadata_size[m_Comm.Size()];
         MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
     
         size_t offset = 0;
-        switch (daosInterface) {
-            case DaosInterface::DAOS_ARRAY:
-                // Use DAOS-ARRAY interface
-                for (int i = 0; i < m_Comm.Size(); i++) {
-                    if (i < m_Comm.Rank()) 
-                        offset += list_metadata_size[i];
-                }
-                break;
-            case DaosInterface::DAOS_ARRAY_1MB_ALIGNED:
-                // Use DAOS-ARRAY-1MB-ALIGN interface
-                offset = m_Comm.Rank() * chunk_size_1mb;
-                break;
-            default:
-                // Handle unknown or unsupported interface
-                break;
-        }
+        if (daosInterface == DaosInterface::DAOS_ARRAY) {
+            // Use DAOS-ARRAY interface
+            for (int i = 0; i < m_Comm.Size(); i++) {
+            if (i < m_Comm.Rank()) 
+                offset += list_metadata_size[i];
+            }
+        } else if (daosInterface == DaosInterface::DAOS_ARRAY_1MB_ALIGNED) {
+            // Use DAOS-ARRAY-1MB-ALIGN interface
+            offset = m_Comm.Rank() * chunk_size_1mb;
+        } 
     
-    /*
+        /*
         if (m_Comm.Rank() == 0) {
             std::cout << "rank 0, metadata size: " << list_metadata_size[0] << std::endl;
         }
-    */
+        */
     
-    #ifdef DEBUG_BADALLOC
+        #ifdef DEBUG_BADALLOC
         char *ptr = TSInfo.MetaEncodeBuffer->Data();
         printf("DaosWriter::EndStep() Metadatablock, step = %d, WriterRank = %d\n", m_WriterStep, m_Comm.Rank());
         for(int i = 0; i < 12; i++)
-                printf("%02x ", ptr[i]);
+            printf("%02x ", ptr[i]);
         printf("\n");
-    #endif
+        #endif
     
         //Setup I/O Descriptor  
         iod.arr_nr = 1;
@@ -607,7 +601,6 @@ void DaosWriter::WriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo)
         int rc = daos_array_write(oh, DAOS_TX_NONE, &iod, &sgl, NULL);
         ASSERT(rc == 0, "daos_array_write() failed with %d", rc);
         CALI_MARK_END("DaosWriter::daos_array_write");
-        
     
         m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
     
@@ -623,9 +616,24 @@ void DaosWriter::WriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo)
             ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
             CALI_MARK_END("DaosWriter::daos_kv_put");
         }
-    
 
-    
+}
+
+void DaosWriter::WriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo)
+{
+    //Create a switch case based on daosinterface
+    switch (daosInterface) {
+        case DaosInterface::DAOS_ARRAY:
+        case DaosInterface::DAOS_ARRAY_1MB_ALIGNED:
+            DaosArrayWriteMetadata(TSInfo);
+            break;
+        case DaosInterface::DAOS_KV:
+            // Add appropriate function call or handling code here
+            break;
+        default:
+            // Handle unknown or unsupported interface
+            break;
+    }
 }
 
 void DaosWriter::EndStep()

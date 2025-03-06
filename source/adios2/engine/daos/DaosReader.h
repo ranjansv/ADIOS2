@@ -238,6 +238,7 @@ private:
                               const bool hasHeader);
 
     void ReadMetadata(size_t);
+    void DaosArrayReadMetadata(size_t Step, uint64_t WriterCount);
 
     /** Process the new metadata coming in (in UpdateBuffer)
      *  @param newIdxSize: the size of the new content from Index Table

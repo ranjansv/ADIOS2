@@ -139,6 +139,7 @@ private:
 
     // Declare WriteMetadata function
     void WriteMetadata(format::BP5Serializer::TimestepInfo & TSInfo);
+    void DaosArrayWriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo);
 
     char node[128] = "unknown";
 
