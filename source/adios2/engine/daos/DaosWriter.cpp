@@ -1344,9 +1344,6 @@ void DaosWriter::SetDataFlag()
 
     // Set m_DataFlag based on the environment variable value
     m_DataFlag = (std::string(datastate) == "OFF") ? DataFlag::OFF : DataFlag::ON;
-
-    //print the value of m_DataFlag
-    std::cout << "m_DataFlag: " << static_cast<int>(m_DataFlag) << std::endl;
 }
 
 // Function to set DAOS interface from the environment variable
