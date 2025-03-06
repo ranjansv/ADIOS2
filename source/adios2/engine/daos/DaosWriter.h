@@ -137,6 +137,9 @@ private:
 
     size_t m_step_offset = 0;
 
+    // Declare WriteMetadata function
+    void WriteMetadata(format::BP5Serializer::TimestepInfo & TSInfo);
+
     char node[128] = "unknown";
 
     int64_t m_WriterStep = 0;
@@ -238,8 +241,8 @@ private:
 
     void WriteMetadataFileIndex(uint64_t MetaDataPos, uint64_t MetaDataSize);
 
-    uint64_t WriteMetadata(const std::vector<core::iovec> &MetaDataBlocks,
-                           const std::vector<core::iovec> &AttributeBlocks);
+    uint64_t WriteAttributes(const std::vector<core::iovec> &AttributeBlocks);
+                           
 
     /** Write Data to disk, in an aggregator chain */
     void WriteData(format::BufferV *Data);

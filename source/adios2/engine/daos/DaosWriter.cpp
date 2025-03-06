@@ -168,8 +168,7 @@ void DaosWriter::WriteMetaMetadata(
 }
 
 uint64_t
-DaosWriter::WriteMetadata(const std::vector<core::iovec> &MetaDataBlocks,
-                          const std::vector<core::iovec> &AttributeBlocks)
+DaosWriter::WriteAttributes(const std::vector<core::iovec> &AttributeBlocks)
 {
     uint64_t MDataTotalSize = 0;
     uint64_t MetaDataSize = 0;
@@ -554,6 +553,81 @@ void DaosWriter::MarshalAttributes()
     }
 }
 
+void DaosWriter::WriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo)
+{
+        /* Use MPI_Allgather to gather list_metadata_size from all processes */
+        uint64_t list_metadata_size[m_Comm.Size()];
+        MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
+    
+        size_t offset = 0;
+        switch (daosInterface) {
+            case DaosInterface::DAOS_ARRAY:
+                // Use DAOS-ARRAY interface
+                for (int i = 0; i < m_Comm.Size(); i++) {
+                    if (i < m_Comm.Rank()) 
+                        offset += list_metadata_size[i];
+                }
+                break;
+            case DaosInterface::DAOS_ARRAY_1MB_ALIGNED:
+                // Use DAOS-ARRAY-1MB-ALIGN interface
+                offset = m_Comm.Rank() * chunk_size_1mb;
+                break;
+            default:
+                // Handle unknown or unsupported interface
+                break;
+        }
+    
+    /*
+        if (m_Comm.Rank() == 0) {
+            std::cout << "rank 0, metadata size: " << list_metadata_size[0] << std::endl;
+        }
+    */
+    
+    #ifdef DEBUG_BADALLOC
+        char *ptr = TSInfo.MetaEncodeBuffer->Data();
+        printf("DaosWriter::EndStep() Metadatablock, step = %d, WriterRank = %d\n", m_WriterStep, m_Comm.Rank());
+        for(int i = 0; i < 12; i++)
+                printf("%02x ", ptr[i]);
+        printf("\n");
+    #endif
+    
+        //Setup I/O Descriptor  
+        iod.arr_nr = 1;
+        rg.rg_len = list_metadata_size[m_Comm.Rank()]; 
+        rg.rg_idx = m_step_offset + offset;
+        iod.arr_rgs = &rg;
+    
+        /** set memory location */ 
+        sgl.sg_nr = 1;
+        d_iov_set(&iov, TSInfo.MetaEncodeBuffer->Data(), TSInfo.MetaEncodeBuffer->m_FixedSize);
+        sgl.sg_iovs = &iov;
+    
+        //Write Metadata
+        CALI_MARK_BEGIN("DaosWriter::daos_array_write");
+        int rc = daos_array_write(oh, DAOS_TX_NONE, &iod, &sgl, NULL);
+        ASSERT(rc == 0, "daos_array_write() failed with %d", rc);
+        CALI_MARK_END("DaosWriter::daos_array_write");
+        
+    
+        m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
+    
+        //Writer Rank 0 -Store the list of metadata size in a KV entry
+        if (m_Comm.Rank() == 0)
+        {
+            char key[1000];
+            sprintf(key, "step%d", m_WriterStep);
+            CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
+            int rc = daos_kv_put(mdsize_oh, DAOS_TX_NONE, 0, key,
+                                 sizeof(uint64_t) * m_Comm.Size(),
+                                 list_metadata_size, NULL);
+            ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
+            CALI_MARK_END("DaosWriter::daos_kv_put");
+        }
+    
+
+    
+}
+
 void DaosWriter::EndStep()
 {
     /* Seconds ts = Now() - m_EngineStart;
@@ -708,7 +782,7 @@ void DaosWriter::EndStep()
                    static_cast<size_t>(m_Comm.Size()));
             WriteMetaMetadata(UniqueMetaMetaBlocks);
             m_LatestMetaDataPos = m_MetaDataPos;
-            m_LatestMetaDataSize = WriteMetadata(Metadata, AttributeBlocks);
+            m_LatestMetaDataSize = WriteAttributes(AttributeBlocks);
             // m_LatestMetaDataPos = 0;
             // m_LatestMetaDataSize = 0;
             if (!m_Parameters.AsyncWrite)
@@ -723,80 +797,9 @@ void DaosWriter::EndStep()
     m_Comm.Barrier();
     CALI_MARK_END("DaosWriter::meta_lvl2");
 
-
-    /* Use MPI_Allgather to gather list_metadata_size from all processes */
     CALI_MARK_BEGIN("DaosWriter::metadata-stabilization");
-    uint64_t list_metadata_size[m_Comm.Size()];
-    MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
-
-    size_t offset = 0;
-    switch (daosInterface) {
-        case DaosInterface::DAOS_ARRAY:
-            // Use DAOS-ARRAY interface
-            for (int i = 0; i < m_Comm.Size(); i++) {
-                if (i < m_Comm.Rank()) 
-                    offset += list_metadata_size[i];
-            }
-            break;
-        case DaosInterface::DAOS_ARRAY_1MB_ALIGNED:
-            // Use DAOS-ARRAY-1MB-ALIGN interface
-            offset = m_Comm.Rank() * chunk_size_1mb;
-            break;
-        default:
-            // Handle unknown or unsupported interface
-            break;
-    }
-
-/*
-    if (m_Comm.Rank() == 0) {
-	    std::cout << "rank 0, metadata size: " << list_metadata_size[0] << std::endl;
-    }
-*/
-
-#ifdef DEBUG_BADALLOC
-    char *ptr = TSInfo.MetaEncodeBuffer->Data();
-    printf("DaosWriter::EndStep() Metadatablock, step = %d, WriterRank = %d\n", m_WriterStep, m_Comm.Rank());
-    for(int i = 0; i < 12; i++)
-            printf("%02x ", ptr[i]);
-    printf("\n");
-#endif
-
-    //Setup I/O Descriptor  
-    iod.arr_nr = 1;
-    rg.rg_len = list_metadata_size[m_Comm.Rank()]; 
-    rg.rg_idx = m_step_offset + offset;
-    iod.arr_rgs = &rg;
-
-    /** set memory location */ 
-    sgl.sg_nr = 1;
-    d_iov_set(&iov, TSInfo.MetaEncodeBuffer->Data(), TSInfo.MetaEncodeBuffer->m_FixedSize);
-    sgl.sg_iovs = &iov;
-
-    //Write Metadata
-    CALI_MARK_BEGIN("DaosWriter::daos_array_write");
-    daos_array_write(oh, DAOS_TX_NONE, &iod, &sgl, NULL);
-    CALI_MARK_END("DaosWriter::daos_array_write");
-    
-
-    m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
-
-    //Writer Rank 0 -Store the list of metadata size in a KV entry
-    if (m_Comm.Rank() == 0)
-    {
-        char key[1000];
-        sprintf(key, "step%d", m_WriterStep);
-        CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
-        int rc = daos_kv_put(mdsize_oh, DAOS_TX_NONE, 0, key,
-                             sizeof(uint64_t) * m_Comm.Size(),
-                             list_metadata_size, NULL);
-        ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
-        CALI_MARK_END("DaosWriter::daos_kv_put");
-    }
-
+    WriteMetadata(TSInfo);
     CALI_MARK_END("DaosWriter::metadata-stabilization");
-
-    //delete[] list_metadata_size;
- 
 
     if (m_Parameters.AsyncWrite)
     {
