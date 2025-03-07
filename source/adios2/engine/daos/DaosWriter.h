@@ -117,15 +117,15 @@ private:
     d_sg_list_t sgl;
     d_iov_t iov;
 
-    enum class DaosInterface {
+    enum class DaosEngine {
         DAOS_ARRAY,
         DAOS_ARRAY_1MB_ALIGNED,
         DAOS_KV,
         UNKNOWN
     };
     
-    DaosInterface daosInterface;
-    void SetDaosInterface();
+    DaosEngine daosEngine;
+    void SetDaosEngine();
     void SetPoolAndContName();
 
     enum class DataFlag {
@@ -138,8 +138,13 @@ private:
     size_t m_step_offset = 0;
 
     // Declare WriteMetadata function
-    void WriteMetadata(format::BP5Serializer::TimestepInfo & TSInfo);
-    void DaosArrayWriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo);
+    void WriteMetadata(format::BP5Serializer::TimestepInfo &);
+    void DaosArrayWriteMetadata(format::BP5Serializer::TimestepInfo &);
+    void DaosKVWriteMetadata(format::BP5Serializer::TimestepInfo &);
+    void CreateDaosArrayObject();
+    void CreateDaosKVObject();
+    void OpenDaosObjAndShare();
+    void WriteObjectIDsToFile();
 
     char node[128] = "unknown";
 

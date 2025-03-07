@@ -560,13 +560,13 @@ void DaosWriter::DaosArrayWriteMetadata(format::BP5Serializer::TimestepInfo &TSI
         MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
     
         size_t offset = 0;
-        if (daosInterface == DaosInterface::DAOS_ARRAY) {
+        if (daosEngine == DaosEngine::DAOS_ARRAY) {
             // Use DAOS-ARRAY interface
             for (int i = 0; i < m_Comm.Size(); i++) {
             if (i < m_Comm.Rank()) 
                 offset += list_metadata_size[i];
             }
-        } else if (daosInterface == DaosInterface::DAOS_ARRAY_1MB_ALIGNED) {
+        } else if (daosEngine == DaosEngine::DAOS_ARRAY_1MB_ALIGNED) {
             // Use DAOS-ARRAY-1MB-ALIGN interface
             offset = m_Comm.Rank() * chunk_size_1mb;
         } 
@@ -619,15 +619,30 @@ void DaosWriter::DaosArrayWriteMetadata(format::BP5Serializer::TimestepInfo &TSI
 
 }
 
+void DaosWriter::DaosKVWriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo) 
+{
+    char key[1000];
+    int rc;
+    sprintf(key, "step%d-rank%d", m_WriterStep, m_Comm.Rank());
+    CALI_MARK_BEGIN("DaosWriter::daos_kv_put");
+    rc = daos_kv_put(oh, DAOS_TX_NONE, 0, key,
+                         TSInfo.MetaEncodeBuffer->m_FixedSize,
+                         TSInfo.MetaEncodeBuffer->Data(), NULL);
+    ASSERT(rc == 0, "daos_kv_put() failed with %d", rc);
+    CALI_MARK_END("DaosWriter::daos_kv_put");
+}
+
 void DaosWriter::WriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo)
 {
     //Create a switch case based on daosinterface
-    switch (daosInterface) {
-        case DaosInterface::DAOS_ARRAY:
-        case DaosInterface::DAOS_ARRAY_1MB_ALIGNED:
+    switch (daosEngine) {
+        case DaosEngine::DAOS_ARRAY:
+        case DaosEngine::DAOS_ARRAY_1MB_ALIGNED:
             DaosArrayWriteMetadata(TSInfo);
             break;
-        case DaosInterface::DAOS_KV:
+        case DaosEngine::DAOS_KV:
+            DaosKVWriteMetadata(TSInfo);
+            break;
             // Add appropriate function call or handling code here
             break;
         default:
@@ -1358,23 +1373,23 @@ void DaosWriter::SetDataFlag()
 }
 
 // Function to set DAOS interface from the environment variable
-void DaosWriter::SetDaosInterface() {
-    const char* env = std::getenv("DAOS_INTERFACE");
+void DaosWriter::SetDaosEngine() {
+    const char* env = std::getenv("DAOS_ENGINE");
     if (!env) {
-        daosInterface = DaosInterface::UNKNOWN;
+        daosEngine = DaosEngine::UNKNOWN;
         return;
     }
 
     std::string interfaceStr(env);
     std::transform(interfaceStr.begin(), interfaceStr.end(), interfaceStr.begin(), ::tolower);
     if (interfaceStr == "daos-array") {
-        daosInterface = DaosInterface::DAOS_ARRAY;
+        daosEngine = DaosEngine::DAOS_ARRAY;
     } else if (interfaceStr == "daos-array-1mb-aligned") {
-        daosInterface = DaosInterface::DAOS_ARRAY_1MB_ALIGNED;
+        daosEngine = DaosEngine::DAOS_ARRAY_1MB_ALIGNED;
     } else if (interfaceStr == "daos-kv") {
-        daosInterface = DaosInterface::DAOS_KV;
+        daosEngine = DaosEngine::DAOS_KV;
     } else {
-        daosInterface = DaosInterface::UNKNOWN;
+        daosEngine = DaosEngine::UNKNOWN;
     }
 }
 
@@ -1405,7 +1420,7 @@ void DaosWriter::InitDAOS()
     rc = gethostname(node, sizeof(node));
     ASSERT(rc == 0, "buffer for hostname too small");
 
-    SetDaosInterface();
+    SetDaosEngine();
     SetPoolAndContName();
     SetDataFlag();
     
@@ -1414,13 +1429,11 @@ void DaosWriter::InitDAOS()
     {
         /** connect to the just created DAOS pool */
         rc = daos_pool_connect(m_pool_label, DSS_PSETID,
-                               // DAOS_PC_EX ,
                                DAOS_PC_RW /* read write access */,
                                &poh /* returned pool handle */,
                                NULL /* returned pool info */, NULL /* event */);
         ASSERT(rc == 0, "pool connect failed with %d", rc);
     }
-
     CALI_MARK_END("DaosWriter::daos_pool_connect");
 
     /** share pool handle with peer tasks */
@@ -1444,48 +1457,67 @@ void DaosWriter::InitDAOS()
 
     if (m_Comm.Rank() == 0)
     {
-        CALI_MARK_BEGIN("DaosWriter::create-daos-array");
-        /** Open a DAOS array object */
-	daos_size_t cell_size = 1;
-	daos_size_t chunk_size = 1048576;
-	oid.hi = 0;
-	oid.lo = getpid();
-	daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
-        ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
-	rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
-        ASSERT(rc == 0, "daos_array_create failed with %d", rc);
-        CALI_MARK_END("DaosWriter::create-daos-array");
-
-	/** Create a DAOS KV object to store metadata sizes */
-	mdsize_oid.hi = 0;
-	mdsize_oid.lo = getpid() + 1;
-	rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
-	ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
-
-        // Open array object
-        CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
-        rc = daos_kv_open(coh, mdsize_oid, DAOS_OO_RW, &mdsize_oh, NULL);
-        ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
-        CALI_MARK_END("DaosWriter::daos_kv_open");
-    }
-    CALI_MARK_BEGIN("DaosWriter::array_oh_share");
-    array_oh_share(&oh);
-    CALI_MARK_END("DaosWriter::array_oh_share");
-
-
-
-
-    if (m_Comm.Rank() == 0)
-    {
-	FILE *fp = fopen("./share/oid.txt", "w");
-        if (fp == NULL)
-        {
-            perror("fopen");
-            exit(1);
+        switch (daosEngine) {
+            case DaosEngine::DAOS_ARRAY:
+            case DaosEngine::DAOS_ARRAY_1MB_ALIGNED:
+                CreateDaosArrayObject();
+                break;
+            case DaosEngine::DAOS_KV:
+                CreateDaosKVObject();
+                break;
+            // Add other cases here if needed
+            default:
+                helper::Throw<std::runtime_error>("Engine", "DaosWriter", "InitDAOS",
+                                                  "Unsupported DAOS interface");
         }
+    }
+
+    OpenDaosObjAndShare();
+
+    if (m_Comm.Rank() == 0) 
+        WriteObjectIDsToFile();
+    
+}
+
+void DaosWriter::WriteObjectIDsToFile() {
+    FILE *fp = fopen("./share/oid.txt", "w");
+    if (fp == NULL)
+    {
+        perror("fopen");
+        exit(1);
+    }
+    if (daosEngine == DaosEngine::DAOS_ARRAY ||
+        daosEngine == DaosEngine::DAOS_ARRAY_1MB_ALIGNED)
+    {
+
         fprintf(fp, "%" PRIu64 "\n%" PRIu64 "\n", oid.hi, oid.lo);
         fprintf(fp, "%" PRIu64 "\n%" PRIu64 "\n", mdsize_oid.hi, mdsize_oid.lo);
         fclose(fp);
+    }
+    else if (daosEngine == DaosEngine::DAOS_KV)
+    {
+        fprintf(fp, "%" PRIu64 "\n%" PRIu64 "\n", oid.hi, oid.lo);
+        fclose(fp);
+    }
+}
+
+void DaosWriter::OpenDaosObjAndShare() {
+    if (daosEngine == DaosEngine::DAOS_ARRAY ||
+        daosEngine == DaosEngine::DAOS_ARRAY_1MB_ALIGNED)
+    {
+        /** share array object handle with peer tasks */
+        CALI_MARK_BEGIN("DaosWriter::array_oh_share");
+        array_oh_share(&oh);
+        CALI_MARK_END("DaosWriter::array_oh_share");
+    }
+    else if (daosEngine == DaosEngine::DAOS_KV)
+    {
+        MPI_Bcast(&oid, sizeof(daos_obj_id_t), MPI_BYTE, 0, MPI_COMM_WORLD);
+        // Open KV object
+        CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
+        int rc = daos_kv_open(coh, oid, DAOS_OO_RW, &oh, NULL);
+        ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
+        CALI_MARK_END("DaosWriter::daos_kv_open");
     }
 }
 
@@ -2251,6 +2283,43 @@ void DaosWriter::daos_handle_share(daos_handle_t *hdl, int type) {
 
   MPI_Barrier(MPI_COMM_WORLD);
   CALI_MARK_END("DaosWriter::global2local+barrier");
+}
+
+void DaosWriter::CreateDaosArrayObject() {
+    int rc;
+    CALI_MARK_BEGIN("DaosWriter::create-daos-array");
+    /** Open a DAOS array object */
+    daos_size_t cell_size = 1;
+    daos_size_t chunk_size = 1048576;
+    oid.hi = 0;
+    oid.lo = getpid();
+    rc = daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
+    ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
+    rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
+    ASSERT(rc == 0, "daos_array_create failed with %d", rc);
+    CALI_MARK_END("DaosWriter::create-daos-array");
+
+    /** Create a DAOS KV object to store metadata sizes */
+    mdsize_oid.hi = 0;
+    mdsize_oid.lo = getpid() + 1;
+    rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+    ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
+
+    // Open array object
+    CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
+    rc = daos_kv_open(coh, mdsize_oid, DAOS_OO_RW, &mdsize_oh, NULL);
+    ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
+    CALI_MARK_END("DaosWriter::daos_kv_open");
+}
+
+void DaosWriter::CreateDaosKVObject() {
+    /** Open a DAOS KV object */
+    int rc;
+    //rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+    //rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_S1, 0, 0);
+    rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+    //rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_RP_2GX, 0, 0);
+    ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 }
 
 } // end namespace engine

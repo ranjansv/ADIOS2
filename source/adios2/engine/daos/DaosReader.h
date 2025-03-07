@@ -29,6 +29,8 @@
 #include <caliper/cali.h>
 #include <caliper/cali-manager.h>
 
+#define MAX_KV_GET_REQS 100
+
 #define FAIL(fmt, ...)                                                         \
     do                                                                         \
     {                                                                          \
@@ -133,7 +135,7 @@ private:
         HANDLE_CO,
     };
 
-    /* Declare variables for the KV object */
+    /* Declare variables for the Array object */
     daos_handle_t oh, mdsize_oh;
     daos_obj_id_t oid, mdsize_oid;
     daos_array_iod_t iod;
@@ -141,15 +143,20 @@ private:
     d_sg_list_t sgl;
     d_iov_t iov;
 
-    enum class DaosInterface {
+    /* Declare variables for the KV object */    
+    daos_handle_t eq;
+    daos_event_t ev[MAX_KV_GET_REQS], *evp[MAX_KV_GET_REQS];
+
+
+    enum class DaosEngine {
         DAOS_ARRAY,
         DAOS_ARRAY_1MB_ALIGNED,
         DAOS_KV,
         UNKNOWN
     };
-    DaosInterface daosInterface;
+    DaosEngine daosEngine;
 
-    void SetDaosInterface();
+    void SetDaosEngine();
     void SetPoolAndContName();
 
     enum class DataFlag {
@@ -239,6 +246,9 @@ private:
 
     void ReadMetadata(size_t);
     void DaosArrayReadMetadata(size_t Step, uint64_t WriterCount);
+    void DaosKVReadMetadata(size_t Step, uint64_t WriterCount);
+    void ReadObjectIDsFromFile();
+    void OpenDAOSObjects();
 
     /** Process the new metadata coming in (in UpdateBuffer)
      *  @param newIdxSize: the size of the new content from Index Table
