@@ -51,12 +51,6 @@ DaosReader::~DaosReader() {
     DestructorClose(m_FailVerbose);
   }
   m_IsOpen = false;
-
-  int rc = 0;
-  if (daosEngine == DaosEngine::DAOS_KV) {
-    rc = daos_eq_destroy(eq, 0);
-    ASSERT(rc == 0, "daos_eq_destroy() failed with %d", rc);
-  }
 }
 
 void DaosReader::DestructorClose(bool Verbose) noexcept {
