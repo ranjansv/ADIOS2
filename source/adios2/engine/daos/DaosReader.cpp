@@ -947,9 +947,8 @@ void DaosReader::array_oh_share(daos_handle_t *oh) {
   }
 
   /** broadcast size of global handle to all peers */
-  rc = MPI_Bcast(&ghdl.iov_buf_len, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-  ASSERT(rc == MPI_SUCCESS, "MPI_Bcast for iov_buf_len failed with %d", rc);
-
+  m_Comm.Bcast((uint64_t*)&ghdl.iov_buf_len, 1, 0);
+  
   /** allocate buffer for global pool handle */
   ghdl.iov_buf = malloc(ghdl.iov_buf_len);
   ghdl.iov_len = ghdl.iov_buf_len;
@@ -961,8 +960,7 @@ void DaosReader::array_oh_share(daos_handle_t *oh) {
   }
 
   /** broadcast global handle to all peers */
-  rc = MPI_Bcast(ghdl.iov_buf, ghdl.iov_len, MPI_BYTE, 0, MPI_COMM_WORLD);
-  ASSERT(rc == MPI_SUCCESS, "MPI_Bcast for iov_buf failed with %d", rc);
+   m_Comm.Bcast((char*)ghdl.iov_buf, ghdl.iov_len, 0);
 
   if (m_Comm.Rank() != 0) {
     /** unpack global handle */
@@ -972,8 +970,9 @@ void DaosReader::array_oh_share(daos_handle_t *oh) {
 
   free(ghdl.iov_buf);
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  m_Comm.Barrier();
 }
+
 
 void DaosReader::SetDataFlag()
 {
@@ -1649,7 +1648,7 @@ void DaosReader::daos_handle_share(daos_handle_t *hdl, int type) {
   }
 
   /** broadcast size of global handle to all peers */
-  MPI_Bcast(&ghdl.iov_buf_len, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+  m_Comm.Bcast((uint64_t *)&ghdl.iov_buf_len, 1, 0);
   CALI_MARK_END("DaosReader::local2global+broadcast_sizeofhandle");
 
   /** allocate buffer for global pool handle */
@@ -1667,7 +1666,7 @@ void DaosReader::daos_handle_share(daos_handle_t *hdl, int type) {
   }
 
   /** broadcast global handle to all peers */
-  MPI_Bcast(ghdl.iov_buf, ghdl.iov_len, MPI_BYTE, 0, MPI_COMM_WORLD);
+  m_Comm.Bcast((char *) ghdl.iov_buf, ghdl.iov_len, 0);
   CALI_MARK_END("DaosReader::local2global+broadcast_handle");
 
   CALI_MARK_BEGIN("DaosReader::global2local+barrier");
@@ -1684,9 +1683,10 @@ void DaosReader::daos_handle_share(daos_handle_t *hdl, int type) {
 
   free(ghdl.iov_buf);
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  m_Comm.Barrier();
   CALI_MARK_END("DaosReader::global2local+barrier");
 }
+
 
 } // end namespace engine
 } // end namespace core

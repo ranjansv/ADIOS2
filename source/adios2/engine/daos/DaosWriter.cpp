@@ -557,7 +557,8 @@ void DaosWriter::DaosArrayWriteMetadata(format::BP5Serializer::TimestepInfo &TSI
 {
         /* Use MPI_Allgather to gather list_metadata_size from all processes */
         uint64_t list_metadata_size[m_Comm.Size()];
-        MPI_Allgather(&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, MPI_UINT64_T, list_metadata_size, 1, MPI_UINT64_T, MPI_COMM_WORLD);
+        m_Comm.Allgather((uint64_t*)&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, (uint64_t*) list_metadata_size, 1);
+        
     
         size_t offset = 0;
         if (daosEngine == DaosEngine::DAOS_ARRAY) {
@@ -1512,7 +1513,7 @@ void DaosWriter::OpenDaosObjAndShare() {
     }
     else if (daosEngine == DaosEngine::DAOS_KV)
     {
-        MPI_Bcast(&oid, sizeof(daos_obj_id_t), MPI_BYTE, 0, MPI_COMM_WORLD);
+        m_Comm.Bcast((char*)&oid, sizeof(daos_obj_id_t), 0);
         // Open KV object
         CALI_MARK_BEGIN("DaosWriter::daos_kv_open");
         int rc = daos_kv_open(coh, oid, DAOS_OO_RW, &oh, NULL);
@@ -1532,9 +1533,8 @@ void DaosWriter::array_oh_share(daos_handle_t *oh) {
   }
 
   /** broadcast size of global handle to all peers */
-  rc = MPI_Bcast(&ghdl.iov_buf_len, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-  ASSERT(rc == MPI_SUCCESS, "MPI_Bcast for iov_buf_len failed with %d", rc);
-
+  m_Comm.Bcast((uint64_t*)&ghdl.iov_buf_len, 1, 0);
+  
   /** allocate buffer for global pool handle */
   ghdl.iov_buf = malloc(ghdl.iov_buf_len);
   ghdl.iov_len = ghdl.iov_buf_len;
@@ -1546,8 +1546,7 @@ void DaosWriter::array_oh_share(daos_handle_t *oh) {
   }
 
   /** broadcast global handle to all peers */
-  rc = MPI_Bcast(ghdl.iov_buf, ghdl.iov_len, MPI_BYTE, 0, MPI_COMM_WORLD);
-  ASSERT(rc == MPI_SUCCESS, "MPI_Bcast for iov_buf failed with %d", rc);
+   m_Comm.Bcast((char*)ghdl.iov_buf, ghdl.iov_len, 0);
 
   if (m_Comm.Rank() != 0) {
     /** unpack global handle */
@@ -1557,7 +1556,7 @@ void DaosWriter::array_oh_share(daos_handle_t *oh) {
 
   free(ghdl.iov_buf);
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  m_Comm.Barrier();
 }
 
 /*generate the header for the metadata index file*/
@@ -2246,7 +2245,7 @@ void DaosWriter::daos_handle_share(daos_handle_t *hdl, int type) {
   }
 
   /** broadcast size of global handle to all peers */
-  MPI_Bcast(&ghdl.iov_buf_len, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+  m_Comm.Bcast((uint64_t *)&ghdl.iov_buf_len, 1, 0);
   CALI_MARK_END("DaosWriter::local2global+broadcast_sizeofhandle");
 
   /** allocate buffer for global pool handle */
@@ -2264,7 +2263,7 @@ void DaosWriter::daos_handle_share(daos_handle_t *hdl, int type) {
   }
 
   /** broadcast global handle to all peers */
-  MPI_Bcast(ghdl.iov_buf, ghdl.iov_len, MPI_BYTE, 0, MPI_COMM_WORLD);
+  m_Comm.Bcast((char *) ghdl.iov_buf, ghdl.iov_len, 0);
   CALI_MARK_END("DaosWriter::local2global+broadcast_handle");
 
   CALI_MARK_BEGIN("DaosWriter::global2local+barrier");
@@ -2281,7 +2280,7 @@ void DaosWriter::daos_handle_share(daos_handle_t *hdl, int type) {
 
   free(ghdl.iov_buf);
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  m_Comm.Barrier();
   CALI_MARK_END("DaosWriter::global2local+barrier");
 }
 
