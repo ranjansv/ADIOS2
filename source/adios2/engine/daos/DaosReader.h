@@ -29,7 +29,7 @@
 #include <caliper/cali.h>
 #include <caliper/cali-manager.h>
 
-#define MAX_KV_GET_REQS 100
+#define MAX_KV_GET_REQS 64
 
 #define FAIL(fmt, ...)                                                         \
     do                                                                         \

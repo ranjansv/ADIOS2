@@ -83,8 +83,6 @@ void DaosReader::ReadMetadata(size_t Step) {
     }
   }
 
-  m_Comm.Barrier();
-
   // broadcast buffer to all ranks from zero
   CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
   m_Comm.BroadcastVector(m_Metadata.m_Buffer);
@@ -461,8 +459,10 @@ StepStatus DaosReader::BeginStep(StepMode mode, const float timeoutSeconds) {
     /* Remove all existing variables from previous steps
        It seems easier than trying to update them */
     // m_IO.RemoveAllVariables();
+    m_Comm.Barrier();
     CALI_MARK_BEGIN("DaosReader::metadata-acquisition");
     ReadMetadata(m_CurrentStep);
+    m_Comm.Barrier();
     CALI_MARK_END("DaosReader::metadata-acquisition");
 
     CALI_MARK_BEGIN("DaosReader::InstallMetadataForTimestep");

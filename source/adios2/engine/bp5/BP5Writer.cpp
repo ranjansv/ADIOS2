@@ -566,6 +566,7 @@ void BP5Writer::EndStep()
     /*
      * Two-step metadata aggregation
      */
+    m_Comm.Barrier();
     CALI_MARK_BEGIN("BP5Writer::metadata-stabilization");
     m_Profiler.Start("meta_lvl1");
     CALI_MARK_BEGIN("BP5Writer::meta_lvl1");

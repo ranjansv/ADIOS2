@@ -818,11 +818,12 @@ void DaosWriter::EndStep()
     } // level 2
     m_Profiler.Stop("meta_lvl2");
     //Barrier to exclude stragglers from MPI_Allgather()
-    m_Comm.Barrier();
     CALI_MARK_END("DaosWriter::meta_lvl2");
 
+    m_Comm.Barrier();
     CALI_MARK_BEGIN("DaosWriter::metadata-stabilization");
     WriteMetadata(TSInfo);
+    m_Comm.Barrier();
     CALI_MARK_END("DaosWriter::metadata-stabilization");
 
     if (m_Parameters.AsyncWrite)
