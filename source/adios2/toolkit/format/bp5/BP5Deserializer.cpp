@@ -33,6 +33,7 @@
 #undef DEBUG_BADALLOC
 
 
+
 #include "adios2/operator/OperatorFactory.h"
 
 #include <array>
@@ -62,7 +63,7 @@ void BP5Deserializer::InstallMetaMetaData(MetaMetaInfoBlock &MM)
 #ifdef DEBUG_BADALLOC
     printf("BP5Deserializer::InstallMetaMetaData() FormatID\n");
     for(int i = 0; i < 12; i++)
-	    printf("%02x ", FormatID[i]);
+	    printf("%02hhx ", FormatID[i]);
     printf("\n");
 #endif
     memcpy(MetaMetaInfo, MM.MetaMetaInfo, MM.MetaMetaInfoLen);
@@ -642,9 +643,9 @@ void BP5Deserializer::InstallMetaData(void *MetadataBlock, size_t BlockLen,
     static int DumpMetadata = -1;
     char *ptr = (char *) MetadataBlock;
 #ifdef DEBUG_BADALLOC
-    printf("BP5Deserializer::InstallMetaData Metadatablock, WriterRank %lu\n", WriterRank);
+    printf("BP5Deserializer::InstallMetaData Metadatablock, Step = %zu, WriterRank %zu, mdsize = %zu\n", Step, WriterRank, BlockLen);
     for(int i = 0; i < 20; i++)
-	    printf("%02x ", ptr[i]);
+	    printf("%02hhx ", ptr[i]);
     printf("\n");
 #endif
     FFSformat =

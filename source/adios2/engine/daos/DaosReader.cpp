@@ -25,8 +25,9 @@ using TP = std::chrono::high_resolution_clock::time_point;
 #define NOW() std::chrono::high_resolution_clock::now();
 #define DURATION(T1, T2) static_cast<double>((T2 - T1).count()) / 1000000000.0;
 
-#define DEBUG_BADALLOC 
+#define DEBUG_BADALLOC
 #undef DEBUG_BADALLOC
+
 
 
 namespace adios2 {
@@ -221,10 +222,10 @@ void DaosReader::DaosKVReadMetadata(size_t Step, uint64_t WriterCount)
 
 #ifdef DEBUG_BADALLOC
     // Print metadata block for the last writer in the batch
-    printf("DaosReader::ReadMetadata MetadataBlock\n");
+    printf("DaosReader::ReadMetadata MetadataBlock, WriterRank = %zu\n", WriterRank);
     char *tmp_ptr = &meta_buff[index - ThisMDSize];
     for (int i = 0; i < 20; i++)
-      printf("%02x ", tmp_ptr[i]);
+      printf("%02hhx ", tmp_ptr[i]);
     printf("\n");
 #endif
   }
@@ -241,7 +242,12 @@ void DaosReader::DaosArrayReadMetadata(size_t Step, uint64_t WriterCount) {
   size_t total_mdsize = 0;
   size_t buffer_size = 0;
   size_t sizeof_list_writer_mdsize;
-  uint64_t list_writer_mdsize[WriterCount];
+  uint64_t *list_writer_mdsize = (uint64_t *)malloc(WriterCount * sizeof(uint64_t));
+  if (list_writer_mdsize == NULL) {
+      fprintf(stderr, "Error: Memory allocation for list_writer_mdsize failed\n");
+      exit(EXIT_FAILURE);
+  }
+  
   daos_range_t *list_rg = NULL;
 
   // Get list of Metadata sizes for all writers
@@ -249,6 +255,10 @@ void DaosReader::DaosArrayReadMetadata(size_t Step, uint64_t WriterCount) {
 
   if (daosEngine == DaosEngine::DAOS_ARRAY_1MB_ALIGNED) {
     list_rg = (daos_range_t *)malloc(WriterCount * sizeof(daos_range_t));
+    if (list_rg == NULL) {
+      fprintf(stderr, "Error: Memory allocation for list_rg failed\n");
+      exit(EXIT_FAILURE);
+    }
   }
 
   sprintf(key, "step%d", Step);
@@ -324,16 +334,16 @@ void DaosReader::DaosArrayReadMetadata(size_t Step, uint64_t WriterCount) {
   rc = daos_array_read(oh, DAOS_TX_NONE, &iod, &sgl, NULL);
   ASSERT(rc == 0, "daos_array_read() failed to read metadata with %d", rc);
   CALI_MARK_END("DaosReader::daos_array_read");
-
+  
   m_step_offset += MAX_AGGREGATE_METADATA_SIZE;
 #ifdef DEBUG_BADALLOC
   size_t offset = 0;
   for (int j = 0; j < WriterCount; j++) {
-    printf("ReadMetadata() Metadatablock, step = %lu, WriterRank = %d\n", Step, j);
-    offset += list_writer_mdsize[j];
+    printf("ReadMetadata() Metadatablock, step = %lu, WriterRank = %zu, mdsize = %lu\n", Step, j, list_writer_mdsize[j]);
     for (int i = 0; i < 12; i++)
-      printf("%02x ", meta_buff[offset + i]);
+      printf("%02hhx ", meta_buff[offset + i]);
     printf("\n");
+    offset += list_writer_mdsize[j];
   }
 #endif
   if (daosEngine == DaosEngine::DAOS_ARRAY_1MB_ALIGNED)

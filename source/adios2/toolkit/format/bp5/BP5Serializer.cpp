@@ -27,6 +27,7 @@
 #undef DEBUG_BADALLOC
 
 
+
 namespace adios2
 {
 namespace format
@@ -1212,7 +1213,7 @@ BP5Serializer::TimestepInfo BP5Serializer::CloseTimestep(int timestep,
 #ifdef DEBUG_BADALLOC
 	printf("BP5Serializer::TimestepInfo() Block.MetaMetaID\n");
 	for(int i = 0; i < 12; i++)
-		printf("%02x ", Block.MetaMetaID[i]);
+		printf("%02hhx ", Block.MetaMetaID[i]);
 	printf("\n");
 #endif
         Block.MetaMetaIDLen = size;
@@ -1285,7 +1286,7 @@ BP5Serializer::TimestepInfo BP5Serializer::CloseTimestep(int timestep,
 #ifdef DEBUG_BADALLOC
     printf("BP5Serializer::TimestepInfo() MetaDataBlock\n");
     for(int i = 0; i < 20; i++)
-	    printf("%02x ", ptr[i]);
+	    printf("%02hhx ", ptr[i]);
     printf("\n");
 #endif
     BufferFFS *Metadata =

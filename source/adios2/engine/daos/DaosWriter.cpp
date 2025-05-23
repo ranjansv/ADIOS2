@@ -556,7 +556,7 @@ void DaosWriter::MarshalAttributes()
 void DaosWriter::DaosArrayWriteMetadata(format::BP5Serializer::TimestepInfo &TSInfo) 
 {
         /* Use MPI_Allgather to gather list_metadata_size from all processes */
-        uint64_t list_metadata_size[m_Comm.Size()];
+        uint64_t *list_metadata_size = (uint64_t *)malloc(m_Comm.Size() * sizeof(uint64_t));
         m_Comm.Allgather((uint64_t*)&TSInfo.MetaEncodeBuffer->m_FixedSize, 1, (uint64_t*) list_metadata_size, 1);
         
     
@@ -580,9 +580,9 @@ void DaosWriter::DaosArrayWriteMetadata(format::BP5Serializer::TimestepInfo &TSI
     
         #ifdef DEBUG_BADALLOC
         char *ptr = TSInfo.MetaEncodeBuffer->Data();
-        printf("DaosWriter::EndStep() Metadatablock, step = %d, WriterRank = %d\n", m_WriterStep, m_Comm.Rank());
+        printf("DaosWriter::DaosArrayWriteMetadata() Metadatablock, step = %d, WriterRank = %d, mdsize = %zu\n", m_WriterStep, m_Comm.Rank(), list_metadata_size[m_Comm.Rank()]);
         for(int i = 0; i < 12; i++)
-            printf("%02x ", ptr[i]);
+            printf("%02hhx ", ptr[i]);
         printf("\n");
         #endif
     
