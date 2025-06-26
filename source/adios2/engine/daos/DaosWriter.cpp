@@ -24,8 +24,12 @@
 #include <iostream>
 #include <memory> // make_shared
 
+#include <cstdint> // int64_t
+#include <random>
+
 #define DEBUG_BADALLOC
 #undef DEBUG_BADALLOC
+
 
 
 
@@ -1268,6 +1272,7 @@ void DaosWriter::InitTransports()
         m_MetadataFileNames = GetBPMetadataFileNames(transportsNames);
         m_MetaMetadataFileNames = GetBPMetaMetadataFileNames(transportsNames);
         m_MetadataIndexFileNames = GetBPMetadataIndexFileNames(transportsNames);
+        m_OIDFileName = GetOIDFileName(transportsNames[0]);
     }
     m_FileMetadataManager.MkDirsBarrier(m_MetadataFileNames,
                                         m_IO.m_TransportsParameters,
@@ -1482,7 +1487,7 @@ void DaosWriter::InitDAOS()
 }
 
 void DaosWriter::WriteObjectIDsToFile() {
-    FILE *fp = fopen("./share/oid.txt", "w");
+    FILE *fp = fopen(m_OIDFileName.c_str(), "w");
     if (fp == NULL)
     {
         perror("fopen");
@@ -2292,16 +2297,23 @@ void DaosWriter::CreateDaosArrayObject() {
     daos_size_t cell_size = 1;
     daos_size_t chunk_size = 1048576;
     oid.hi = 0;
-    oid.lo = getpid();
+    // Use a random number generator for oid.lo instead of getpid()
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    oid.lo = gen();
     rc = daos_array_generate_oid(coh, &oid, true, 0, 0, 0);
-    ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
+    ASSERT(rc == 0, "daos_array_generate_oid failed with %d", rc);
     rc = daos_array_create(coh, oid, DAOS_TX_NONE, cell_size, chunk_size, &oh, NULL);
     ASSERT(rc == 0, "daos_array_create failed with %d", rc);
     CALI_MARK_END("DaosWriter::create-daos-array");
 
+
     /** Create a DAOS KV object to store metadata sizes */
     mdsize_oid.hi = 0;
-    mdsize_oid.lo = getpid() + 1;
+    // Use a random number generator for mdsize_oid.lo instead of getpid()
+    std::random_device rd_md;
+    std::mt19937_64 gen_md(rd_md());
+    mdsize_oid.lo = gen_md();
     rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
     ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 

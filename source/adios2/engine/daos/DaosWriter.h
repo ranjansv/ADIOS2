@@ -176,6 +176,8 @@ private:
     std::vector<std::string> m_DrainMetadataIndexFileNames;
     std::vector<std::string> m_ActiveFlagFileNames;
 
+    std::string m_OIDFileName;
+
     bool m_BetweenStepPairs = false;
 
     void Init() final;

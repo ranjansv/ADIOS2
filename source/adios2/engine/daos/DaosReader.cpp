@@ -84,6 +84,8 @@ void DaosReader::ReadMetadata(size_t Step) {
     }
   }
 
+  m_Comm.Barrier();
+
   // broadcast buffer to all ranks from zero
   CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
   m_Comm.BroadcastVector(m_Metadata.m_Buffer);
@@ -329,7 +331,8 @@ void DaosReader::DaosArrayReadMetadata(size_t Step, uint64_t WriterCount) {
   d_iov_set(&iov, &meta_buff[index], total_mdsize);
   sgl.sg_iovs = &iov;
 
-  // Write Metadata
+
+  // Read in metadata
   CALI_MARK_BEGIN("DaosReader::daos_array_read");
   rc = daos_array_read(oh, DAOS_TX_NONE, &iod, &sgl, NULL);
   ASSERT(rc == 0, "daos_array_read() failed to read metadata with %d", rc);
@@ -1036,7 +1039,8 @@ void DaosReader::SetPoolAndContName() {
 }
 
 void DaosReader::ReadObjectIDsFromFile() {
-  FILE *fp = fopen("./share/oid.txt", "r");
+  std::string OIDFileName = GetOIDFileName(m_Name);
+  FILE *fp = fopen(OIDFileName.c_str(), "r");
   if (fp == NULL) {
       perror("fopen");
       exit(1);
@@ -1096,66 +1100,40 @@ void DaosReader::OpenDAOSObjects() {
 void DaosReader::InitDAOS() {
   // Rank 0 - Connect to DAOS pool, and open container
   int rc;
-  CALI_MARK_BEGIN("DaosReader::daos_init");
-  rc = daos_init();
-  ASSERT(rc == 0, "daos_init failed with %d", rc);
-  CALI_MARK_END("DaosReader::daos_init");
-
-  rc = gethostname(node, sizeof(node));
-  ASSERT(rc == 0, "buffer for hostname too small");
-
-  SetDaosEngine();
-  SetPoolAndContName();
-  SetDataFlag();
-
-  CALI_MARK_BEGIN("DaosReader::daos_pool_connect");
   if (m_Comm.Rank() == 0) {
+    CALI_MARK_BEGIN("DaosReader::daos_init");
+    rc = daos_init();
+    ASSERT(rc == 0, "daos_init failed with %d", rc);
+    CALI_MARK_END("DaosReader::daos_init");
+
+    rc = gethostname(node, sizeof(node));
+    ASSERT(rc == 0, "buffer for hostname too small");
+
+    SetDaosEngine();
+    SetPoolAndContName();
+    SetDataFlag();
+
+    CALI_MARK_BEGIN("DaosReader::daos_pool_connect");
     /** connect to the just created DAOS pool */
     rc = daos_pool_connect(m_pool_label, DSS_PSETID,
-                           // DAOS_PC_EX ,
-                           DAOS_PC_RO /* read only access */,
-                           &poh /* returned pool handle */,
-                           NULL /* returned pool info */, NULL /* event */);
+                 // DAOS_PC_EX ,
+                 DAOS_PC_RO /* read only access */,
+                 &poh /* returned pool handle */,
+                 NULL /* returned pool info */, NULL /* event */);
     ASSERT(rc == 0, "pool connect failed with %d", rc);
-  }
+    CALI_MARK_END("DaosReader::daos_pool_connect");
 
-  CALI_MARK_END("DaosReader::daos_pool_connect");
-
-  /** share pool handle with peer tasks */
-  CALI_MARK_BEGIN("DaosReader::daos_handle_share_pool");
-  if(m_Comm.Size() > 1)
-    daos_handle_share(&poh, DaosReader::HANDLE_POOL);
-  CALI_MARK_END("DaosReader::daos_handle_share_pool");
-
-
-  CALI_MARK_BEGIN("DaosReader::daos_cont_open");
-
-  if (m_Comm.Rank() == 0) {
+    CALI_MARK_BEGIN("DaosReader::daos_cont_open");
     /** open container */
     rc = daos_cont_open(poh, m_cont_label, DAOS_COO_RO, &coh, NULL, NULL);
     ASSERT(rc == 0, "container open failed with %d", rc);
-  }
-  CALI_MARK_END("DaosReader::daos_cont_open");
+    CALI_MARK_END("DaosReader::daos_cont_open");
 
-  /** share container handle with peer tasks */
-  CALI_MARK_BEGIN("DaosReader::daos_handle_share_cont");
-  if(m_Comm.Size() > 1)
-    daos_handle_share(&coh, HANDLE_CO);
-  CALI_MARK_END("DaosReader::daos_handle_share_cont");
-
-  CALI_MARK_BEGIN("DaosReader::fscanf-oid-n-broadcast");
-  if (m_Comm.Rank() == 0) {
+    CALI_MARK_BEGIN("DaosReader::OpenDAOSObjs");
     ReadObjectIDsFromFile();
     OpenDAOSObjects();
+    CALI_MARK_END("DaosReader::OpenDAOSObjs");
   }
-  CALI_MARK_END("DaosReader::fscanf-oid-n-broadcast");
-
-/*
-  CALI_MARK_BEGIN("DaosReader::array_oh_share");
-  if (m_Comm.Size() > 1)
-  array_oh_share(&oh);
-  CALI_MARK_END("DaosReader::array_oh_share");
-*/
 
 }
 
