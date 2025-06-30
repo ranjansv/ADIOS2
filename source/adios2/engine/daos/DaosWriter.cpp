@@ -1389,11 +1389,11 @@ void DaosWriter::SetDaosEngine() {
 
     std::string interfaceStr(env);
     std::transform(interfaceStr.begin(), interfaceStr.end(), interfaceStr.begin(), ::tolower);
-    if (interfaceStr == "daos-array") {
+    if (interfaceStr == "daos-array" || interfaceStr == "daos-array-parallel-readers") {
         daosEngine = DaosEngine::DAOS_ARRAY;
-    } else if (interfaceStr == "daos-array-1mb-aligned") {
+    } else if (interfaceStr == "daos-array-1mb-aligned" || interfaceStr == "daos-array-1mb-aligned-parallel-readers") {
         daosEngine = DaosEngine::DAOS_ARRAY_1MB_ALIGNED;
-    } else if (interfaceStr == "daos-kv") {
+    } else if (interfaceStr == "daos-kv" || interfaceStr == "daos-kv-parallel-readers") {
         daosEngine = DaosEngine::DAOS_KV;
     } else {
         daosEngine = DaosEngine::UNKNOWN;

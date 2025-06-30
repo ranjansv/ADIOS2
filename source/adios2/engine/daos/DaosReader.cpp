@@ -67,29 +67,39 @@ void DaosReader::ReadMetadata(size_t Step) {
 
   m_Metadata.Reset(true, false);
 
-  // Reader rank 0 - reads all metadata
-  if (m_Comm.Rank() == 0) {
-    switch (daosEngine) {
-      case DaosEngine::DAOS_ARRAY:
-      case DaosEngine::DAOS_ARRAY_1MB_ALIGNED:
-        DaosArrayReadMetadata(Step, WriterCount);
-        break;
-      case DaosEngine::DAOS_KV:
-        DaosKVReadMetadata(Step, WriterCount);
-        break;
-      // Add other cases here if needed
-      default:
-        helper::Throw<std::runtime_error>("Engine", "DaosReader", "ReadMetadata",
-                                          "Unsupported DAOS interface");
+    auto readMetadata = [&]() {
+        switch (daosEngine) {
+            case DaosEngine::DAOS_ARRAY:
+            case DaosEngine::DAOS_ARRAY_1MB_ALIGNED:
+                DaosArrayReadMetadata(Step, WriterCount);
+                break;
+            case DaosEngine::DAOS_KV:
+                DaosKVReadMetadata(Step, WriterCount);
+                break;
+            // Add other cases here if needed
+            default:
+                helper::Throw<std::runtime_error>("Engine", "DaosReader", "ReadMetadata",
+                                                  "Unsupported DAOS interface");
+        }
+    };
+
+    if (m_MetadataReaderMode == MetadataReaderMode::SerialRank0)
+    {
+        if (m_Comm.Rank() == 0)
+        {
+            readMetadata();
+        }
+        m_Comm.Barrier();
+
+        // broadcast buffer to all ranks from zero
+        CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
+        m_Comm.BroadcastVector(m_Metadata.m_Buffer);
+        CALI_MARK_END("DaosReader::broadcast_metadata");
     }
-  }
-
-  m_Comm.Barrier();
-
-  // broadcast buffer to all ranks from zero
-  CALI_MARK_BEGIN("DaosReader::broadcast_metadata");
-  m_Comm.BroadcastVector(m_Metadata.m_Buffer);
-  CALI_MARK_END("DaosReader::broadcast_metadata");
+    else
+    {
+        readMetadata();
+    }
 }
 
 void DaosReader::DaosKVReadMetadata(size_t Step, uint64_t WriterCount) 
@@ -1013,10 +1023,22 @@ void DaosReader::SetDaosEngine() {
   std::transform(interfaceStr.begin(), interfaceStr.end(), interfaceStr.begin(), ::tolower);
   if (interfaceStr == "daos-array") {
       daosEngine = DaosEngine::DAOS_ARRAY;
+      m_MetadataReaderMode = MetadataReaderMode::SerialRank0;
+  } else if (interfaceStr == "daos-array-parallel-readers") {
+      daosEngine = DaosEngine::DAOS_ARRAY;
+      m_MetadataReaderMode = MetadataReaderMode::Parallel;
   } else if (interfaceStr == "daos-array-1mb-aligned") {
       daosEngine = DaosEngine::DAOS_ARRAY_1MB_ALIGNED;
+      m_MetadataReaderMode = MetadataReaderMode::SerialRank0;
+  } else if (interfaceStr == "daos-array-1mb-aligned-parallel-readers") {
+      daosEngine = DaosEngine::DAOS_ARRAY_1MB_ALIGNED;
+      m_MetadataReaderMode = MetadataReaderMode::Parallel;
   } else if (interfaceStr == "daos-kv") {
       daosEngine = DaosEngine::DAOS_KV;
+      m_MetadataReaderMode = MetadataReaderMode::SerialRank0;
+  } else if (interfaceStr == "daos-kv-parallel-readers") {
+      daosEngine = DaosEngine::DAOS_KV;
+      m_MetadataReaderMode = MetadataReaderMode::Parallel;
   } else {
       daosEngine = DaosEngine::UNKNOWN;
   }
@@ -1100,18 +1122,16 @@ void DaosReader::OpenDAOSObjects() {
 void DaosReader::InitDAOS() {
   // Rank 0 - Connect to DAOS pool, and open container
   int rc;
+
+  SetDaosEngine();
+  SetPoolAndContName();
+  SetDataFlag();
+
   if (m_Comm.Rank() == 0) {
     CALI_MARK_BEGIN("DaosReader::daos_init");
     rc = daos_init();
     ASSERT(rc == 0, "daos_init failed with %d", rc);
     CALI_MARK_END("DaosReader::daos_init");
-
-    rc = gethostname(node, sizeof(node));
-    ASSERT(rc == 0, "buffer for hostname too small");
-
-    SetDaosEngine();
-    SetPoolAndContName();
-    SetDataFlag();
 
     CALI_MARK_BEGIN("DaosReader::daos_pool_connect");
     /** connect to the just created DAOS pool */
@@ -1135,6 +1155,18 @@ void DaosReader::InitDAOS() {
     CALI_MARK_END("DaosReader::OpenDAOSObjs");
   }
 
+  if (m_MetadataReaderMode == MetadataReaderMode::Parallel) {
+    if (m_Comm.Rank() != 0) {
+      rc = daos_init();
+      ASSERT(rc == 0, "daos_init failed with %d", rc);
+
+      // Open DAOS objects for parallel readers
+      CALI_MARK_BEGIN("DaosReader::OpenDAOSObjs");
+      ReadObjectIDsFromFile();
+      OpenDAOSObjects();
+      CALI_MARK_END("DaosReader::OpenDAOSObjs");
+    }
+  }
 }
 
 void DaosReader::InstallMetaMetaData(format::BufferSTL buffer) {

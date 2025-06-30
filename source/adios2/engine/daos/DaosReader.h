@@ -156,6 +156,13 @@ private:
     };
     DaosEngine daosEngine;
 
+    enum class MetadataReaderMode {
+        SerialRank0 = 0,   // Default: only rank 0 reads metadata
+        Parallel           // All ranks read metadata in parallel
+    };
+    
+    MetadataReaderMode m_MetadataReaderMode = MetadataReaderMode::SerialRank0;
+
     void SetDaosEngine();
     void SetPoolAndContName();
 
