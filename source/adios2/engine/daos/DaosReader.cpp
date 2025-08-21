@@ -987,7 +987,7 @@ void DaosReader::array_oh_share(daos_handle_t *oh) {
 
   if (m_Comm.Rank() != 0) {
     /** unpack global handle */
-    rc = daos_array_global2local(coh, ghdl, 0, oh);
+    rc = daos_array_global2local(m_coh, ghdl, 0, oh);
     ASSERT(rc == 0, "global2local failed with %d", rc);
   }
 
@@ -1091,15 +1091,15 @@ void DaosReader::OpenDAOSObjects() {
   if (daosEngine == DaosEngine::DAOS_ARRAY || daosEngine == DaosEngine::DAOS_ARRAY_1MB_ALIGNED) {
     daos_size_t cell_size = 1;
     daos_size_t chunk_size = 1048576;
-    rc = daos_array_open(coh, oid, DAOS_TX_NONE, DAOS_OO_RO, &cell_size, &chunk_size, &oh, NULL);
+    rc = daos_array_open(m_coh, oid, DAOS_TX_NONE, DAOS_OO_RO, &cell_size, &chunk_size, &oh, NULL);
     ASSERT(rc == 0, "daos_array_open failed with %d", rc);
 
-    rc = daos_kv_open(coh, mdsize_oid, DAOS_OO_RO, &mdsize_oh, NULL);
+    rc = daos_kv_open(m_coh, mdsize_oid, DAOS_OO_RO, &mdsize_oh, NULL);
     ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
   } else if (daosEngine == DaosEngine::DAOS_KV) {
     // Open KV object
     CALI_MARK_BEGIN("DaosReader::daos_kv_open");
-    rc = daos_kv_open(coh, oid, DAOS_OO_RO, &oh, NULL);
+    rc = daos_kv_open(m_coh, oid, DAOS_OO_RO, &oh, NULL);
     ASSERT(rc == 0, "daos_kv_open failed with %d", rc);
     CALI_MARK_END("DaosReader::daos_kv_open");
 
@@ -1138,14 +1138,14 @@ void DaosReader::InitDAOS() {
     rc = daos_pool_connect(m_pool_label, DSS_PSETID,
                  // DAOS_PC_EX ,
                  DAOS_PC_RO /* read only access */,
-                 &poh /* returned pool handle */,
+                 &m_poh /* returned pool handle */,
                  NULL /* returned pool info */, NULL /* event */);
     ASSERT(rc == 0, "pool connect failed with %d", rc);
     CALI_MARK_END("DaosReader::daos_pool_connect");
 
     CALI_MARK_BEGIN("DaosReader::daos_cont_open");
     /** open container */
-    rc = daos_cont_open(poh, m_cont_label, DAOS_COO_RO, &coh, NULL, NULL);
+    rc = daos_cont_open(m_poh, m_cont_label, DAOS_COO_RO, &m_coh, NULL, NULL);
     ASSERT(rc == 0, "container open failed with %d", rc);
     CALI_MARK_END("DaosReader::daos_cont_open");
 
@@ -1156,9 +1156,26 @@ void DaosReader::InitDAOS() {
   }
 
   if (m_MetadataReaderMode == MetadataReaderMode::Parallel) {
+
     if (m_Comm.Rank() != 0) {
+      CALI_MARK_BEGIN("DaosReader::daos_init");
       rc = daos_init();
       ASSERT(rc == 0, "daos_init failed with %d", rc);
+      CALI_MARK_END("DaosReader::daos_init");
+    }
+
+    /** share pool handle with peer tasks */
+    CALI_MARK_BEGIN("DaosReader::daos_handle_share_pool");
+    daos_handle_share(&m_poh, DaosReader::HANDLE_POOL);
+    CALI_MARK_END("DaosReader::daos_handle_share_pool");
+
+    /** share container handle with peer tasks */
+    CALI_MARK_BEGIN("DaosReader::daos_handle_share_cont");
+    daos_handle_share(&m_coh, DaosReader::HANDLE_CO);
+    CALI_MARK_END("DaosReader::daos_handle_share_cont");
+
+
+    if (m_Comm.Rank() != 0) {
 
       // Open DAOS objects for parallel readers
       CALI_MARK_BEGIN("DaosReader::OpenDAOSObjs");
@@ -1696,7 +1713,7 @@ void DaosReader::daos_handle_share(daos_handle_t *hdl, int type) {
       /* NB: Only pool_global2local are different */
       rc = daos_pool_global2local(ghdl, hdl);
     } else {
-      rc = daos_cont_global2local(poh, ghdl, hdl);
+      rc = daos_cont_global2local(m_poh, ghdl, hdl);
     }
     ASSERT(rc == 0, "global2local failed with %d", rc);
   }

@@ -127,7 +127,7 @@ private:
     char m_pool_label[100], m_cont_label[100];
 
     /* Declare variables for pool and container handles */
-    daos_handle_t poh, coh;
+    daos_handle_t m_poh, m_coh;
 
     enum DAOS_handleType
     {

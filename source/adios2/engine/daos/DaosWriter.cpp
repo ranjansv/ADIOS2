@@ -2314,7 +2314,7 @@ void DaosWriter::CreateDaosArrayObject() {
     std::random_device rd_md;
     std::mt19937_64 gen_md(rd_md());
     mdsize_oid.lo = gen_md();
-    rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+    rc = daos_obj_generate_oid(coh, &mdsize_oid, DAOS_OT_KV_HASHED, 0, 0, 0);
     ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 
     // Open array object
@@ -2329,7 +2329,7 @@ void DaosWriter::CreateDaosKVObject() {
     int rc;
     //rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
     //rc = daos_obj_generate_oid(coh, &oid, DAOS_OF_KV_FLAT, OC_S1, 0, 0);
-    rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_SX, 0, 0);
+    rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, 0, 0, 0);
     //rc = daos_obj_generate_oid(coh, &oid, DAOS_OT_KV_HASHED, OC_RP_2GX, 0, 0);
     ASSERT(rc == 0, "daos_obj_generate_oid failed with %d", rc);
 }
