@@ -857,6 +857,7 @@ void DaosReader::OpenFiles(TimePoint &timeoutInstant,
   /* Poll */
   size_t flag = 1; // 0 = OK, opened file, 1 = timeout, 2 = error
   std::string lasterrmsg;
+  bool openMetadataOnAllRanks = (m_MetadataReaderMode == MetadataReaderMode::Parallel);
   if (m_Comm.Rank() == 0) {
     /* Open the metadata index table */
     const std::string metadataIndexFile(GetBPMetadataIndexFileName(m_Name));
@@ -928,6 +929,20 @@ void DaosReader::OpenFiles(TimePoint &timeoutInstant,
           "Engine", "DaosReader", "OpenFiles",
           "File " + m_Name + " could not be found within the " +
               std::to_string(timeoutSeconds.count()) + "s timeout");
+    }
+  }
+
+  // Open metadata file on all ranks if in parallel metadata reader mode
+  if (flag == 0 && openMetadataOnAllRanks && m_Comm.Rank() != 0) {
+    try {
+      const std::string metadataFile(GetBPMetadataFileName(m_Name));
+      const bool profile = false;
+      m_MDFileManager.OpenFiles({metadataFile}, adios2::Mode::Read,
+                                 m_IO.m_TransportsParameters, profile);
+    } catch (std::ios_base::failure &e) {
+      // Should not fail since rank 0 succeeded, but handle for robustness
+      helper::Throw<std::ios_base::failure>("Engine", "DaosReader", "OpenFiles",
+                                            "Failed to open metadata file on non-zero rank: " + std::string(e.what()));
     }
   }
 
